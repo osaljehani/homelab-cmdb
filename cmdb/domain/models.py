@@ -92,6 +92,7 @@ class K8sCluster(Base):
     description = Column(Text)
 
     nodes = relationship("K8sNode", back_populates="cluster", cascade="all, delete-orphan")
+    namespaces = relationship("K8sNamespace", back_populates="cluster", cascade="all, delete-orphan")
 
 
 class K8sNode(Base):
@@ -105,6 +106,17 @@ class K8sNode(Base):
 
     host = relationship("Host", back_populates="k8s_nodes")
     cluster = relationship("K8sCluster", back_populates="nodes")
+
+
+class K8sNamespace(Base):
+    __tablename__ = "k8s_namespaces"
+    __table_args__ = (UniqueConstraint("cluster_id", "name"),)
+
+    id = Column(Integer, primary_key=True)
+    cluster_id = Column(Integer, ForeignKey("k8s_clusters.id"), nullable=False)
+    name = Column(String, nullable=False)
+
+    cluster = relationship("K8sCluster", back_populates="namespaces")
 
 
 class ImportSource(str, Enum):
@@ -121,4 +133,7 @@ class ImportLog(Base):
     filename = Column(String)
     hosts_upserted = Column(Integer, default=0)
     hosts_failed = Column(Integer, default=0)
+    k8s_clusters_upserted = Column(Integer, nullable=True)
+    k8s_nodes_upserted = Column(Integer, nullable=True)
+    k8s_namespaces_upserted = Column(Integer, nullable=True)
     notes = Column(Text)
