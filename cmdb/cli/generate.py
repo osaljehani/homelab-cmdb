@@ -19,6 +19,9 @@ def inventory(
     tag: str | None = typer.Option(None, "--tag", "-t", help="Filter by tag"),
 ) -> None:
     """Generate Ansible inventory."""
+    if fmt not in ("yaml", "ini"):
+        console.print(f"[red]Unknown format '{fmt}'. Use 'yaml' or 'ini'.[/red]")
+        raise typer.Exit(1)
     with get_session() as session:
         content = (
             generate_inventory_ini(session, tag=tag)
