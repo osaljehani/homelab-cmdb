@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Generate   HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Generate Configs</h1>
+
+<div class="card" style="margin-bottom:1rem;padding:1rem 1.5rem;">
+  <form style="display:flex;gap:.75rem;align-items:center;">
+    <label style="font-size:.9rem;">Filter by tag:</label>
+    <input type="text" name="tag" value="{{ tag }}" placeholder="e.g. proxmox">
+    <button type="submit" class="btn btn-sm">Apply</button>
+    {% if tag %}<a href="/generate" class="btn btn-sm btn-secondary">Clear</a>{% endif %}
+  </form>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+      <h2 style="margin:0;">Inventory YAML</h2>
+      <a href="/generate/download/inventory.yaml{% if tag %}?tag={{ tag }}{% endif %}" class="btn btn-sm">Download</a>
+    </div>
+    <pre>{{ inv_yaml }}</pre>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+      <h2 style="margin:0;">Inventory INI</h2>
+      <a href="/generate/download/inventory.ini{% if tag %}?tag={{ tag }}{% endif %}" class="btn btn-sm">Download</a>
+    </div>
+    <pre>{{ inv_ini }}</pre>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+      <h2 style="margin:0;">SSH Config</h2>
+      <a href="/generate/download/ssh-config{% if tag %}?tag={{ tag }}{% endif %}" class="btn btn-sm">Download</a>
+    </div>
+    <pre>{{ ssh_config }}</pre>
+  </div>
+</div>
+{% endblock %}
