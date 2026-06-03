@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Kubernetes Topology</h1>
 
-<div style="display:grid; grid-template-columns:2fr 1fr; gap:1rem; align-items:start;">
+<div class="grid-2-1">
   <div>
     {% for cluster in clusters %}
     <div class="card">
@@ -13,7 +13,7 @@
           <button class="btn btn-sm btn-danger" onclick="return confirm('Delete cluster?')">Delete</button>
         </form>
       </div>
-      {% if cluster.description %}<p style="color:#6b7280;margin:0 0 1rem;">{{ cluster.description }}</p>{% endif %}
+      {% if cluster.description %}<p class="text-muted" style="margin:0 0 1rem;">{{ cluster.description }}</p>{% endif %}
       <table>
         <thead><tr><th>Host</th><th>IP</th><th>Role</th><th></th></tr></thead>
         <tbody>
@@ -35,17 +35,17 @@
       </table>
       <form method="post" action="/k8s/nodes" style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
         <input type="hidden" name="cluster" value="{{ cluster.name }}">
-        <select name="hostname" style="padding:.4rem .75rem;border:1px solid #ddd;border-radius:6px;">
+        <select name="hostname">
           {% for h in all_hosts %}<option value="{{ h.hostname }}">{{ h.hostname }}</option>{% endfor %}
         </select>
-        <select name="role" style="padding:.4rem .75rem;border:1px solid #ddd;border-radius:6px;">
+        <select name="role">
           {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
         </select>
         <button type="submit" class="btn btn-sm">Add Node</button>
       </form>
     </div>
     {% else %}
-    <div class="card" style="color:#999;text-align:center;padding:2rem;">No clusters yet. Create one →</div>
+    <div class="card text-muted text-center" style="padding:2rem;">No clusters yet. Create one →</div>
     {% endfor %}
   </div>
 

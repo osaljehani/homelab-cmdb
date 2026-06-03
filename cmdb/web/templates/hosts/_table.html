@@ -22,7 +22,7 @@
       <td>{{ h.last_seen.strftime('%Y-%m-%d') if h.last_seen else ' ' }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="7" style="text-align:center;color:#999;padding:2rem">No hosts found.</td></tr>
+    <tr><td colspan="7" class="text-muted text-center" style="padding:2rem">No hosts found.</td></tr>
   {% endfor %}
   </tbody>
 </table>
