@@ -12,7 +12,7 @@
 
 <div class="card">
   <h2>Upload Files</h2>
-  <p style="color:#6b7280;font-size:.9rem;">Upload one or more JSON files from <code>ansible -m setup --tree out/ &lt;hosts&gt;</code></p>
+  <p class="text-muted" style="font-size:.9rem;">Upload one or more JSON files from <code>ansible -m setup --tree out/ &lt;hosts&gt;</code></p>
   <form
     action="/import/upload"
     method="post"
@@ -32,12 +32,12 @@
     <tr>
       <td>{{ log.imported_at.strftime('%Y-%m-%d %H:%M') }}</td>
       <td>{{ log.source.value }}</td>
-      <td style="font-size:.85rem;color:#6b7280;">{{ log.filename or '—' }}</td>
+      <td class="text-muted" style="font-size:.85rem;">{{ log.filename or '—' }}</td>
       <td>{{ log.hosts_upserted }}</td>
       <td>{% if log.hosts_failed %}<span class="badge badge-red">{{ log.hosts_failed }}</span>{% else %}0{% endif %}</td>
     </tr>
     {% else %}
-    <tr><td colspan="5" style="text-align:center;color:#999;padding:2rem">No imports yet.</td></tr>
+    <tr><td colspan="5" class="text-muted text-center" style="padding:2rem">No imports yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>
