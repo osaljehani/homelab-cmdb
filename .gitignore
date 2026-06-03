@@ -10,4 +10,5 @@ dist/
 CLAUDE.md
 .remember/
 out/
-tests/fixtures/blade14.json
+tests/fixtures/
+docs/superpowers/
