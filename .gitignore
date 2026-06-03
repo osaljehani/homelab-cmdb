@@ -10,3 +10,4 @@ dist/
 CLAUDE.md
 .remember/
 out/
+tests/fixtures/testhost.json
