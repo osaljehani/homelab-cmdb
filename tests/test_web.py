@@ -20,8 +20,8 @@ def client():
 
 
 @pytest.fixture
-def populated_client(client, db, blade14_facts):
-    import_host(db, blade14_facts)
+def populated_client(client, db, host_facts):
+    import_host(db, host_facts)
     return client
 
 
@@ -40,21 +40,21 @@ def test_dashboard_shows_host_count(populated_client):
 def test_hosts_list_loads(populated_client):
     r = populated_client.get("/hosts")
     assert r.status_code == 200
-    assert "blade14" in r.text
+    assert "testhost" in r.text
 
 
 def test_hosts_list_search(populated_client):
-    r = populated_client.get("/hosts", params={"q": "blade14"})
-    assert "blade14" in r.text
+    r = populated_client.get("/hosts", params={"q": "testhost"})
+    assert "testhost" in r.text
     r2 = populated_client.get("/hosts", params={"q": "zzznomatch"})
-    assert "blade14" not in r2.text
+    assert "testhost" not in r2.text
 
 
 def test_host_detail_loads(populated_client):
-    r = populated_client.get("/hosts/blade14")
+    r = populated_client.get("/hosts/testhost")
     assert r.status_code == 200
-    assert "blade14" in r.text
-    assert "192.168.0.14" in r.text
+    assert "testhost" in r.text
+    assert "192.168.1.10" in r.text
 
 
 def test_host_detail_404(client):
@@ -63,14 +63,14 @@ def test_host_detail_404(client):
 
 
 def test_host_tag_add(populated_client, db):
-    r = populated_client.post("/hosts/blade14/tags", data={"tag": "proxmox"})
+    r = populated_client.post("/hosts/testhost/tags", data={"tag": "proxmox"})
     assert r.status_code == 200
     assert "proxmox" in r.text
 
 
 def test_host_tag_remove(populated_client, db):
-    add_tag(db, "blade14", "proxmox")
-    r = populated_client.delete("/hosts/blade14/tags/proxmox")
+    add_tag(db, "testhost", "proxmox")
+    r = populated_client.delete("/hosts/testhost/tags/proxmox")
     assert r.status_code == 200
     assert "proxmox" not in r.text
 
@@ -81,12 +81,12 @@ def test_import_page_loads(client):
     assert "Import" in r.text
 
 
-def test_import_upload_single_file(client, db, blade14_facts):
+def test_import_upload_single_file(client, db, host_facts):
     import json
-    content = json.dumps(blade14_facts).encode()
+    content = json.dumps(host_facts).encode()
     r = client.post(
         "/import/upload",
-        files={"files": ("blade14", content, "application/json")},
+        files={"files": ("testhost", content, "application/json")},
     )
     assert r.status_code == 200
     assert "1" in r.text

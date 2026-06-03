@@ -8,8 +8,8 @@ from cmdb.domain.models import K8sNodeRole
 
 
 @pytest.fixture
-def populated_db(db, blade14_facts):
-    import_host(db, blade14_facts)
+def populated_db(db, host_facts):
+    import_host(db, host_facts)
     return db
 
 
@@ -46,15 +46,15 @@ def test_delete_cluster_not_found(populated_db):
 
 def test_add_node(populated_db):
     add_cluster(populated_db, "k3s")
-    node = add_node(populated_db, "blade14", "k3s", K8sNodeRole.CONTROL_PLANE)
+    node = add_node(populated_db, "testhost", "k3s", K8sNodeRole.CONTROL_PLANE)
     assert node.id is not None
     assert node.role == K8sNodeRole.CONTROL_PLANE
 
 
 def test_add_node_updates_role(populated_db):
     add_cluster(populated_db, "k3s")
-    add_node(populated_db, "blade14", "k3s", K8sNodeRole.WORKER)
-    node = add_node(populated_db, "blade14", "k3s", K8sNodeRole.CONTROL_PLANE)
+    add_node(populated_db, "testhost", "k3s", K8sNodeRole.WORKER)
+    node = add_node(populated_db, "testhost", "k3s", K8sNodeRole.CONTROL_PLANE)
     assert node.role == K8sNodeRole.CONTROL_PLANE
 
 
@@ -66,24 +66,24 @@ def test_add_node_unknown_host_raises(populated_db):
 
 def test_add_node_unknown_cluster_raises(populated_db):
     with pytest.raises(ValueError, match="Cluster"):
-        add_node(populated_db, "blade14", "ghost", K8sNodeRole.WORKER)
+        add_node(populated_db, "testhost", "ghost", K8sNodeRole.WORKER)
 
 
 def test_list_nodes(populated_db):
     add_cluster(populated_db, "k3s")
-    add_node(populated_db, "blade14", "k3s", K8sNodeRole.CONTROL_PLANE)
+    add_node(populated_db, "testhost", "k3s", K8sNodeRole.CONTROL_PLANE)
     nodes = list_nodes(populated_db, "k3s")
     assert len(nodes) == 1
-    assert nodes[0].host.hostname == "blade14"
+    assert nodes[0].host.hostname == "testhost"
 
 
 def test_remove_node(populated_db):
     add_cluster(populated_db, "k3s")
-    add_node(populated_db, "blade14", "k3s", K8sNodeRole.WORKER)
-    assert remove_node(populated_db, "blade14", "k3s") is True
+    add_node(populated_db, "testhost", "k3s", K8sNodeRole.WORKER)
+    assert remove_node(populated_db, "testhost", "k3s") is True
     assert len(list_nodes(populated_db, "k3s")) == 0
 
 
 def test_remove_node_not_found(populated_db):
     add_cluster(populated_db, "k3s")
-    assert remove_node(populated_db, "blade14", "k3s") is False
+    assert remove_node(populated_db, "testhost", "k3s") is False
