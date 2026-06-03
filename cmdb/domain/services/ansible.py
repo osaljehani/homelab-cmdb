@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,24 @@ def import_host(session: Session, raw_data: dict[str, Any]) -> Host:
     return host
 
 
+_HOST_SEPARATOR = re.compile(r"^[\w\-\.]+ \| \w+ =>", re.MULTILINE)
+
+
+def _parse_file(path: Path) -> list[dict[str, Any]]:
+    text = path.read_text().strip()
+    separators = list(_HOST_SEPARATOR.finditer(text))
+    if not separators:
+        # Plain JSON file (from --tree)
+        return [json.loads(text)]
+    # Multi-host stdout: split on each "hostname | STATUS =>" boundary
+    blocks = []
+    for i, match in enumerate(separators):
+        start = text.index("=>", match.start()) + 2
+        end = separators[i + 1].start() if i + 1 < len(separators) else len(text)
+        blocks.append(json.loads(text[start:end].strip()))
+    return blocks
+
+
 def import_from_path(session: Session, path: str, source: ImportSource) -> ImportLog:
     target = Path(path)
     files = [target] if target.is_file() else [f for f in target.iterdir() if f.is_file()]
@@ -95,17 +114,14 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
     errors: list[str] = []
 
     for f in files:
-        try:
-            text = f.read_text().strip()
-            # Strip Ansible stdout prefix: "hostname | SUCCESS => {"
-            if not text.startswith("{") and "=>" in text:
-                text = text[text.index("=>") + 2:].strip()
-            data = json.loads(text)
-            import_host(session, data)
-            upserted += 1
-        except Exception as e:
-            failed += 1
-            errors.append(f"{f.name}: {e}")
+        for i, data in enumerate(_parse_file(f)):
+            label = f"{f.name}[{i}]" if i else f.name
+            try:
+                import_host(session, data)
+                upserted += 1
+            except Exception as e:
+                failed += 1
+                errors.append(f"{label}: {e}")
 
     log = ImportLog(
         source=source,
