@@ -23,9 +23,16 @@ def delete_cluster(session: Session, name: str) -> bool:
 
 
 def add_node(session: Session, hostname: str, cluster_name: str, role: K8sNodeRole) -> K8sNode:
-    host = session.query(Host).filter_by(hostname=hostname).first()
+    host = (
+        session.query(Host)
+        .filter((Host.hostname == hostname) | (Host.fqdn == hostname))
+        .first()
+    )
     if not host:
-        raise ValueError(f"Host '{hostname}' not found")
+        raise ValueError(
+            f"Host '{hostname}' not found   "
+            "ensure the host is imported via Ansible and its hostname or FQDN matches the K8s node name"
+        )
     cluster = session.query(K8sCluster).filter_by(name=cluster_name).first()
     if not cluster:
         raise ValueError(f"Cluster '{cluster_name}' not found")
