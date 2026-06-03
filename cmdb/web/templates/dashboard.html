@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Dashboard   HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="value">{{ host_count }}</div>
+    <div class="label">Hosts</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{ cluster_count }}</div>
+    <div class="label">K8s Clusters</div>
+  </div>
+  <div class="stat-card">
+    <div class="value">{{ last_import.imported_at.strftime('%Y-%m-%d') if last_import else ' ' }}</div>
+    <div class="label">Last Import</div>
+  </div>
+</div>
+
+{% if os_breakdown %}
+<div class="card">
+  <h2>OS Breakdown</h2>
+  <table>
+    <thead><tr><th>OS Family</th><th>Count</th></tr></thead>
+    <tbody>
+      {% for family, count in os_breakdown.items() %}
+      <tr><td>{{ family }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

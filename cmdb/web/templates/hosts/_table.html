@@ -1,0 +1,28 @@
+<table>
+  <thead>
+    <tr>
+      <th>Hostname</th>
+      <th>IP</th>
+      <th>OS</th>
+      <th>CPU</th>
+      <th>RAM (MB)</th>
+      <th>Tags</th>
+      <th>Last Seen</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for h in hosts %}
+    <tr style="cursor:pointer" onclick="location.href='/hosts/{{ h.hostname }}'">
+      <td><strong>{{ h.hostname }}</strong></td>
+      <td>{{ h.primary_ipv4 or ' ' }}</td>
+      <td>{{ h.os_distribution or '' }} {{ h.os_version or '' }}</td>
+      <td>{{ h.cpu_cores or '?' }}c/{{ h.cpu_threads or '?' }}t</td>
+      <td>{{ h.memory_mb or ' ' }}</td>
+      <td>{% for t in h.tags %}<span class="badge">{{ t.name }}</span>{% endfor %}</td>
+      <td>{{ h.last_seen.strftime('%Y-%m-%d') if h.last_seen else ' ' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#999;padding:2rem">No hosts found.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

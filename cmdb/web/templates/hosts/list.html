@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Hosts   HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Hosts</h1>
+<div class="card" style="margin-bottom:1rem; padding: 1rem 1.5rem;">
+  <input
+    type="search"
+    name="q"
+    value="{{ q }}"
+    placeholder="Search hostname, IP, OS…"
+    hx-get="/hosts"
+    hx-trigger="input changed delay:300ms, search"
+    hx-target="#hosts-table"
+    hx-include="[name='tag']"
+    style="width:280px;"
+  >
+  <input type="hidden" name="tag" value="{{ tag }}">
+</div>
+<div id="hosts-table">
+  {% include "hosts/_table.html" %}
+</div>
+{% endblock %}
