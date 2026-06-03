@@ -73,3 +73,20 @@ def test_host_tag_remove(populated_client, db):
     r = populated_client.delete("/hosts/blade14/tags/proxmox")
     assert r.status_code == 200
     assert "proxmox" not in r.text
+
+
+def test_import_page_loads(client):
+    r = client.get("/import")
+    assert r.status_code == 200
+    assert "Import" in r.text
+
+
+def test_import_upload_single_file(client, db, blade14_facts):
+    import json
+    content = json.dumps(blade14_facts).encode()
+    r = client.post(
+        "/import/upload",
+        files={"files": ("blade14", content, "application/json")},
+    )
+    assert r.status_code == 200
+    assert "1" in r.text
