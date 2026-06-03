@@ -184,3 +184,20 @@ def test_import_from_path_node_warnings_in_notes(populated_db, tmp_path):
     assert log.k8s_nodes_upserted == 1
     assert log.notes is not None
     assert "no-such-host" in log.notes
+
+
+def test_import_cluster_node_matches_by_fqdn(db: Session, host_facts: dict):
+    # Host stored with short hostname but FQDN matching the K8s node name
+    host_facts["ansible_facts"]["ansible_hostname"] = "blade-14"
+    host_facts["ansible_facts"]["ansible_fqdn"] = "omsaj-blade-14"
+    import_host(db, host_facts)
+    db.commit()
+
+    data = {
+        "cluster": "test-cluster",
+        "nodes": [{"hostname": "omsaj-blade-14", "role": "control-plane"}],
+        "namespaces": [],
+    }
+    counts = import_cluster(db, data)
+    assert counts["nodes"] == 1
+    assert counts["nodes_failed"] == 0
