@@ -29,7 +29,7 @@ async def import_upload(
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         for f in files:
-            dest = tmp_path / (f.filename or "upload.json")
+            dest = tmp_path / (Path(f.filename).name if f.filename else "upload.json")
             dest.write_bytes(await f.read())
         log = import_from_path(db, tmp, ImportSource.WEB)
 
