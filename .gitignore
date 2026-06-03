@@ -10,4 +10,5 @@ dist/
 CLAUDE.md
 .remember/
 out/
-tests/fixtures/testhost.json
+tests/fixtures/
+docs/superpowers/
