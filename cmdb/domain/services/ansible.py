@@ -96,7 +96,11 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
 
     for f in files:
         try:
-            data = json.loads(f.read_text())
+            text = f.read_text().strip()
+            # Strip Ansible stdout prefix: "hostname | SUCCESS => {"
+            if not text.startswith("{") and "=>" in text:
+                text = text[text.index("=>") + 2:].strip()
+            data = json.loads(text)
             import_host(session, data)
             upserted += 1
         except Exception as e:
