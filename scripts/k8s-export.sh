@@ -12,12 +12,16 @@
 set -euo pipefail
 
 CLUSTER_NAME="${1:?Usage: k8s-export.sh <cluster-name> [description] [--context <ctx>]}"
-DESCRIPTION="${2:-}"
+shift
+DESCRIPTION=""
 CTX_FLAG=""
 
-if [[ "${3:-}" == "--context" ]]; then
-  CTX_FLAG="--context ${4:?--context requires a value}"
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --context) CTX_FLAG="--context ${2:?--context requires a value}"; shift 2 ;;
+    *) DESCRIPTION="$1"; shift ;;
+  esac
+done
 
 # Detect node roles from standard k8s labels.
 # control-plane: node-role.kubernetes.io/control-plane (>=1.20) or /master (legacy)
