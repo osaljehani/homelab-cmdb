@@ -1,0 +1,23 @@
+<div id="tag-list">
+  {% for t in host.tags %}
+  <span class="badge">
+    {{ t.name }}
+    <button
+      class="btn btn-sm btn-danger"
+      style="margin-left:.25rem;padding:.1rem .35rem;font-size:.7rem;"
+      hx-delete="/hosts/{{ host.hostname }}/tags/{{ t.name }}"
+      hx-target="#tag-list"
+      hx-swap="outerHTML"
+    >×</button>
+  </span>
+  {% endfor %}
+  <form
+    hx-post="/hosts/{{ host.hostname }}/tags"
+    hx-target="#tag-list"
+    hx-swap="outerHTML"
+    style="display:inline"
+  >
+    <input type="text" name="tag" placeholder="add tag" style="width:100px;">
+    <button type="submit" class="btn btn-sm">+</button>
+  </form>
+</div>
