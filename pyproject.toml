@@ -29,6 +29,7 @@ cmdb = "cmdb.cli.main:app"
 dev = [
     "pytest>=8.0",
     "httpx>=0.27",
+    "ruff>=0.4",
 ]
 
 [tool.pytest.ini_options]
