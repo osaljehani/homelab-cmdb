@@ -60,6 +60,22 @@ def test_import_from_path_single_file(db, tmp_path, blade14_facts):
     assert log.hosts_failed == 0
 
 
+def test_import_multi_host_stdout_file(db, tmp_path, blade14_facts, blade14_facts_alt):
+    import json
+    block1 = json.dumps(blade14_facts)
+    block2_facts = blade14_facts_alt.copy()
+    block2_facts["ansible_facts"] = dict(blade14_facts_alt["ansible_facts"])
+    block2_facts["ansible_facts"]["ansible_machine_id"] = "deadbeef" * 4
+    block2_facts["ansible_facts"]["ansible_hostname"] = "node2"
+    block2 = json.dumps(block2_facts)
+    combined = f"host1 | SUCCESS => {block1}\nhost2 | SUCCESS => {block2}\n"
+    f = tmp_path / "homelab.json"
+    f.write_text(combined)
+    log = import_from_path(db, str(f), ImportSource.CLI)
+    assert log.hosts_upserted == 2
+    assert log.hosts_failed == 0
+
+
 def test_import_from_path_idempotent(db, tmp_path, blade14_facts):
     import json
     f = tmp_path / "blade14"
