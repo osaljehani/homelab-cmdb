@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Host, K8sCluster, K8sNode, K8sNodeRole
@@ -23,9 +24,13 @@ def delete_cluster(session: Session, name: str) -> bool:
 
 
 def add_node(session: Session, hostname: str, cluster_name: str, role: K8sNodeRole) -> K8sNode:
+    name_lower = hostname.lower()
     host = (
         session.query(Host)
-        .filter((Host.hostname == hostname) | (Host.fqdn == hostname))
+        .filter(
+            (func.lower(Host.hostname) == name_lower)
+            | (func.lower(Host.fqdn) == name_lower)
+        )
         .first()
     )
     if not host:

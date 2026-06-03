@@ -201,3 +201,20 @@ def test_import_cluster_node_matches_by_fqdn(db: Session, host_facts: dict):
     counts = import_cluster(db, data)
     assert counts["nodes"] == 1
     assert counts["nodes_failed"] == 0
+
+
+def test_import_cluster_node_matches_case_insensitive(db: Session, host_facts: dict):
+    # Ansible stores 'omsaj-Blade-14', kubectl exports 'omsaj-blade-14'
+    host_facts["ansible_facts"]["ansible_hostname"] = "omsaj-Blade-14"
+    host_facts["ansible_facts"]["ansible_fqdn"] = "omsaj-Blade-14"
+    import_host(db, host_facts)
+    db.commit()
+
+    data = {
+        "cluster": "test-cluster",
+        "nodes": [{"hostname": "omsaj-blade-14", "role": "control-plane"}],
+        "namespaces": [],
+    }
+    counts = import_cluster(db, data)
+    assert counts["nodes"] == 1
+    assert counts["nodes_failed"] == 0
