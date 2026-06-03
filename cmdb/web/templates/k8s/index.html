@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Kubernetes — HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Kubernetes Topology</h1>
+
+<div style="display:grid; grid-template-columns:2fr 1fr; gap:1rem; align-items:start;">
+  <div>
+    {% for cluster in clusters %}
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2 style="margin:0;">{{ cluster.name }}</h2>
+        <form method="post" action="/k8s/clusters/{{ cluster.name }}/delete" style="display:inline">
+          <button class="btn btn-sm btn-danger" onclick="return confirm('Delete cluster?')">Delete</button>
+        </form>
+      </div>
+      {% if cluster.description %}<p style="color:#6b7280;margin:0 0 1rem;">{{ cluster.description }}</p>{% endif %}
+      <table>
+        <thead><tr><th>Host</th><th>IP</th><th>Role</th><th></th></tr></thead>
+        <tbody>
+        {% for node in cluster.nodes %}
+        <tr>
+          <td><a href="/hosts/{{ node.host.hostname }}">{{ node.host.hostname }}</a></td>
+          <td>{{ node.host.primary_ipv4 or '—' }}</td>
+          <td><span class="badge">{{ node.role.value }}</span></td>
+          <td>
+            <form method="post" action="/k8s/nodes/{{ node.host.hostname }}/{{ cluster.name }}/delete">
+              <button class="btn btn-sm btn-danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="color:#999;text-align:center">No nodes yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <form method="post" action="/k8s/nodes" style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <input type="hidden" name="cluster" value="{{ cluster.name }}">
+        <select name="hostname" style="padding:.4rem .75rem;border:1px solid #ddd;border-radius:6px;">
+          {% for h in all_hosts %}<option value="{{ h.hostname }}">{{ h.hostname }}</option>{% endfor %}
+        </select>
+        <select name="role" style="padding:.4rem .75rem;border:1px solid #ddd;border-radius:6px;">
+          {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm">Add Node</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="card" style="color:#999;text-align:center;padding:2rem;">No clusters yet. Create one →</div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>New Cluster</h2>
+    <form method="post" action="/k8s/clusters" style="display:flex;flex-direction:column;gap:.75rem;">
+      <input type="text" name="name" placeholder="Cluster name" required>
+      <input type="text" name="description" placeholder="Description (optional)">
+      <button type="submit" class="btn">Create</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
