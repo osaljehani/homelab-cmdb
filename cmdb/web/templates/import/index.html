@@ -9,6 +9,11 @@
     K8s import: {{ last_result.k8s_clusters_upserted }} clusters, {{ last_result.k8s_nodes_upserted }} nodes, {{ last_result.k8s_namespaces_upserted }} namespaces.
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
+  {% elif last_result_type == 'docker' %}
+  <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
+    Docker import: {{ last_result.containers_upserted }} containers.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
   {% else %}
   <div class="flash-{{ 'success' if last_result.hosts_failed == 0 else 'error' }}">
     Ansible import: {{ last_result.hosts_upserted }} upserted, {{ last_result.hosts_failed }} failed.
@@ -17,13 +22,22 @@
   {% endif %}
 {% endif %}
 
-<div class="grid-2-1" style="align-items:start;">
+<div class="grid-3" style="align-items:start;">
   <div class="card">
     <h2>Upload Ansible Facts</h2>
     <p class="text-muted" style="font-size:.9rem;">Upload one or more JSON files from <code>ansible -m setup --tree out/ &lt;hosts&gt;</code></p>
     <form action="/import/upload" method="post" enctype="multipart/form-data">
       <input type="file" name="files" multiple accept=".json" style="margin-bottom:.75rem;display:block;">
       <button type="submit" class="btn">Import Hosts</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Upload Docker Export</h2>
+    <p class="text-muted" style="font-size:.9rem;">Upload JSON from <code>scripts/docker-export.sh</code></p>
+    <form action="/import/upload/docker" method="post" enctype="multipart/form-data">
+      <input type="file" name="files" multiple accept=".json" style="margin-bottom:.75rem;display:block;">
+      <button type="submit" class="btn">Import Containers</button>
     </form>
   </div>
 
@@ -43,7 +57,7 @@
     <thead>
       <tr>
         <th>Date</th><th>Source</th><th>File</th>
-        <th>Hosts</th><th>Clusters</th><th>Nodes</th><th>Namespaces</th><th>Errors</th>
+        <th>Hosts</th><th>Containers</th><th>Clusters</th><th>Nodes</th><th>Namespaces</th><th>Errors</th>
       </tr>
     </thead>
     <tbody>
@@ -53,6 +67,7 @@
       <td>{{ log.source.value }}</td>
       <td class="text-muted" style="font-size:.85rem;">{{ log.filename or ' ' }}</td>
       <td>{{ log.hosts_upserted if log.hosts_upserted else ' ' }}</td>
+      <td>{{ log.containers_upserted if log.containers_upserted is not none else ' ' }}</td>
       <td>{{ log.k8s_clusters_upserted if log.k8s_clusters_upserted is not none else ' ' }}</td>
       <td>{{ log.k8s_nodes_upserted if log.k8s_nodes_upserted is not none else ' ' }}</td>
       <td>{{ log.k8s_namespaces_upserted if log.k8s_namespaces_upserted is not none else ' ' }}</td>
@@ -65,7 +80,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="text-muted text-center" style="padding:2rem">No imports yet.</td></tr>
+    <tr><td colspan="9" class="text-muted text-center" style="padding:2rem">No imports yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

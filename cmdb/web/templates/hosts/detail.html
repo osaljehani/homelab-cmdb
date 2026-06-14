@@ -3,7 +3,7 @@
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
   <div>
-    <a href="/hosts" style="color:#6b7280;font-size:.9rem;">← Hosts</a>
+    <a href="/hosts" style="color:var(--text-muted);font-size:.9rem;">← Hosts</a>
     <h1 style="margin:.25rem 0 0;">{{ host.hostname }}</h1>
   </div>
 </div>
@@ -69,8 +69,58 @@
   {% include "hosts/_tag_list.html" %}
 </div>
 
+{% if host.containers %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+    <h2 style="margin:0;">Containers</h2>
+    <span class="badge">{{ host.containers | length }}</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Image</th><th>State</th><th>Ports</th><th>Compose</th></tr>
+    </thead>
+    <tbody>
+    {% for c in host.containers | sort(attribute='name') %}
+      <tr>
+        <td><strong>{{ c.name }}</strong></td>
+        <td class="text-muted" style="font-size:.85rem;">{{ c.image or ' ' }}</td>
+        <td>{% if c.state %}<span class="badge{% if c.state|lower not in ['running','up'] %} badge-red{% endif %}">{{ c.state }}</span>{% else %} {% endif %}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ c.ports or ' ' }}</td>
+        <td>{% if c.compose_project %}<span class="badge">{{ c.compose_project }}</span>{% else %} {% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if history %}
+<div class="card">
+  <h2>Change History</h2>
+  <ul class="timeline">
+    {% for entry in history %}
+    <li class="timeline-item">
+      <div class="timeline-date">{{ entry.captured_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      {% if entry.initial %}
+        <div class="text-muted" style="font-size:.85rem;">Initial import   host first seen.</div>
+      {% else %}
+        {% for field, old, new in entry.changes %}
+        <div class="diff-row">
+          <span class="diff-field">{{ field }}</span>:
+          <span class="diff-old">{{ old if old is not none else '∅' }}</span>
+          →
+          <span class="diff-new">{{ new if new is not none else '∅' }}</span>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <details style="margin-top:1rem;">
-  <summary style="cursor:pointer;font-weight:600;padding:.75rem;background:white;border-radius:8px;">
+  <summary style="cursor:pointer;font-weight:600;padding:.75rem;background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);">
     Raw Ansible Facts
   </summary>
   <div class="card" style="margin-top:.5rem;">
