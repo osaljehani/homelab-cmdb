@@ -6,49 +6,55 @@
   <title>{% block title %}HomeLabCMDB{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
   <style>
     :root {
-      --bg-base:         #070d16;
-      --bg-nav:          #060c14;
-      --bg-card:         #0e1825;
-      --bg-input:        #080f1a;
-      --bg-table-head:   #0b1520;
-      --bg-table-hover:  #0f2035;
-      --border:          #1c2f42;
-      --text-primary:    #dde6f0;
-      --text-secondary:  #5c7a94;
-      --text-nav:        #6b8ba4;
-      --text-nav-active: #e2eefa;
-      --accent:          #38bdf8;
-      --accent-hover:    #0ea5e9;
-      --accent-dim:      rgba(56,189,248,.1);
-      --danger:          #f87171;
-      --danger-hover:    #ef4444;
-      --badge-bg:        rgba(56,189,248,.08);
-      --badge-text:      #38bdf8;
-      --badge-border:    rgba(56,189,248,.2);
-      --badge-red-bg:    rgba(248,113,113,.08);
-      --badge-red-text:  #f87171;
-      --badge-red-border:rgba(248,113,113,.2);
-      --bg-pre:          #040810;
-      --text-pre:        #7dd3fc;
-      --stat-value:      #38bdf8;
+      /* ── Graphite palette (matches Portfolio) ── */
+      --bg-base:         #121212;
+      --bg-nav:          #151515;
+      --bg-card:         #1a1a1a;
+      --bg-input:        #1a1a1a;
+      --surface:         #1a1a1a;
+      --bg-table-head:   #151515;
+      --bg-table-hover:  #1a1a1a;
+      --border:          #2a2a2a;
+      --border-hover:    #4a4a4a;
+      --text-primary:    #f2f2f2;
+      --text-secondary:  #b0b0b0;
+      --text-muted:      #7a7a7a;
+      --text-nav:        #7a7a7a;
+      --text-nav-active: #f2f2f2;
+      /* Single restrained accent   used ONLY for active nav, brand, stat values */
+      --accent:          #7d9bb8;
+      --accent-hover:    #93acc4;
+      --accent-dim:      rgba(125,155,184,.12);
+      --danger:          #ef4444;
+      --danger-hover:    #f87171;
+      --badge-bg:        transparent;
+      --badge-text:      #b0b0b0;
+      --badge-border:    #2a2a2a;
+      --badge-red-bg:    transparent;
+      --badge-red-text:  #ef4444;
+      --badge-red-border:rgba(239,68,68,.4);
+      --bg-pre:          #0d0d0d;
+      --text-pre:        #b0b0b0;
+      --stat-value:      #7d9bb8;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
       margin: 0;
       background: var(--bg-base);
-      color: var(--text-primary);
+      color: var(--text-secondary);
       font-size: 15px;
-      line-height: 1.5;
+      line-height: 1.6;
     }
 
     a { color: inherit; text-decoration: none; }
+    ::selection { background: var(--text-primary); color: var(--bg-base); }
 
     /* ── Nav ── */
     .nav-toggle { display: none; }
@@ -99,7 +105,6 @@
       width: 20px;
       height: 2px;
       background: var(--text-nav);
-      border-radius: 2px;
       transition: transform .2s, opacity .2s;
     }
 
@@ -111,7 +116,8 @@
     .nav-links a {
       padding: .9rem .85rem;
       color: var(--text-nav);
-      font-size: .875rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
       font-weight: 500;
       position: relative;
       transition: color .15s;
@@ -127,7 +133,6 @@
       background: var(--accent);
       transform: scaleX(0);
       transition: transform .15s;
-      border-radius: 2px 2px 0 0;
     }
 
     .nav-links a:hover { color: var(--text-nav-active); }
@@ -146,6 +151,15 @@
       font-size: 1.5rem;
       font-weight: 600;
       letter-spacing: -.02em;
+      color: var(--text-primary);
+    }
+
+    /* Terminal-style marker on page headings (Portfolio "$ whoami" idiom) */
+    h1::before {
+      content: '$ ';
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      font-weight: 500;
     }
 
     h2 {
@@ -154,14 +168,13 @@
       font-weight: 600;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: var(--text-secondary);
+      color: var(--text-muted);
     }
 
     /* ── Cards ── */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 8px;
       padding: 1.5rem;
       margin-bottom: 1rem;
       overflow-x: auto;
@@ -183,7 +196,7 @@
       font-weight: 500;
       letter-spacing: .07em;
       text-transform: uppercase;
-      color: var(--text-secondary);
+      color: var(--text-muted);
       background: var(--bg-table-head);
     }
 
@@ -197,19 +210,22 @@
       border-left-color: var(--accent);
     }
 
-    /* ── Badges ── */
+    /* ── Badges / tags ── */
     .badge {
       display: inline-flex;
       align-items: center;
-      padding: .1rem .55rem;
-      border-radius: 999px;
+      padding: .12rem .55rem;
       background: var(--badge-bg);
       color: var(--badge-text);
       border: 1px solid var(--badge-border);
-      font-size: .76rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .74rem;
       font-weight: 500;
       margin: .1rem;
+      transition: border-color .15s, color .15s;
     }
+
+    .badge:hover { border-color: var(--border-hover); }
 
     .badge-red {
       background: var(--badge-red-bg);
@@ -224,22 +240,21 @@
       padding: .45rem .75rem;
       background: var(--bg-input);
       border: 1px solid var(--border);
-      border-radius: 6px;
       font-size: .875rem;
       color: var(--text-primary);
       font-family: inherit;
       outline: none;
-      transition: border-color .15s, box-shadow .15s;
+      transition: border-color .15s;
       width: 100%;
       max-width: 360px;
     }
 
+    input[type=search]::placeholder,
+    input[type=text]::placeholder { color: #6a6a6a; }
+
     input[type=search]:focus,
     input[type=text]:focus,
-    select:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(56,189,248,.08);
-    }
+    select:focus { border-color: var(--border-hover); }
 
     input[type=file] {
       color: var(--text-secondary);
@@ -254,30 +269,30 @@
       display: inline-flex;
       align-items: center;
       padding: .45rem 1rem;
-      background: var(--accent);
-      color: #04111e;
-      border: none;
-      border-radius: 6px;
+      background: var(--text-primary);
+      color: var(--bg-base);
+      border: 1px solid var(--text-primary);
       cursor: pointer;
       font-size: .875rem;
       font-weight: 600;
       font-family: inherit;
       white-space: nowrap;
-      transition: background .15s;
+      transition: background .15s, border-color .15s, color .15s;
     }
 
-    .btn:hover { background: var(--accent-hover); }
+    .btn:hover { background: #d6d6d6; border-color: #d6d6d6; }
     .btn-sm { padding: .28rem .65rem; font-size: .8rem; }
 
     .btn-danger {
       background: transparent;
       color: var(--danger);
-      border: 1px solid rgba(248,113,113,.25);
+      border: 1px solid var(--badge-red-border);
     }
 
     .btn-danger:hover {
-      background: rgba(248,113,113,.1);
+      background: rgba(239,68,68,.1);
       border-color: var(--danger);
+      color: var(--danger);
     }
 
     .btn-secondary {
@@ -287,42 +302,43 @@
     }
 
     .btn-secondary:hover {
-      background: var(--accent-dim);
-      color: var(--text-nav-active);
-      border-color: rgba(56,189,248,.3);
+      background: transparent;
+      color: var(--text-primary);
+      border-color: var(--border-hover);
     }
 
     /* ── Stats ── */
     .stats-row {
-      display: flex;
-      gap: 1rem;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
       margin-bottom: 1.5rem;
     }
 
     .stat-card {
-      flex: 1;
-      min-width: 140px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      background: var(--bg-base);
       padding: 1.25rem 1.5rem;
+      transition: background .15s;
     }
+
+    .stat-card:hover { background: var(--surface); }
 
     .stat-card .value {
       font-family: 'JetBrains Mono', monospace;
       font-size: 1.9rem;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--stat-value);
       letter-spacing: -.02em;
     }
 
     .stat-card .label {
-      font-size: .72rem;
+      font-size: .7rem;
       font-weight: 600;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: var(--text-secondary);
+      color: var(--text-muted);
       margin-top: .35rem;
     }
 
@@ -332,7 +348,6 @@
       font-size: .82em;
       background: var(--bg-pre);
       border: 1px solid var(--border);
-      border-radius: 4px;
       padding: .1em .4em;
       color: var(--text-pre);
     }
@@ -340,7 +355,6 @@
     pre {
       background: var(--bg-pre);
       border: 1px solid var(--border);
-      border-radius: 6px;
       padding: 1rem;
       overflow-x: auto;
       font-family: 'JetBrains Mono', monospace;
@@ -352,21 +366,19 @@
 
     /* ── Alerts ── */
     .flash-success {
-      background: rgba(34,197,94,.07);
-      border: 1px solid rgba(34,197,94,.22);
-      color: #4ade80;
+      background: rgba(122,160,122,.07);
+      border: 1px solid rgba(122,160,122,.3);
+      color: #8fbf8f;
       padding: .8rem 1rem;
-      border-radius: 6px;
       margin-bottom: 1rem;
       font-size: .9rem;
     }
 
     .flash-error {
-      background: rgba(248,113,113,.07);
-      border: 1px solid rgba(248,113,113,.22);
-      color: #f87171;
+      background: rgba(239,68,68,.07);
+      border: 1px solid var(--badge-red-border);
+      color: var(--danger);
       padding: .8rem 1rem;
-      border-radius: 6px;
       margin-bottom: 1rem;
       font-size: .9rem;
     }
@@ -377,11 +389,55 @@
       border: none;
       padding: .35rem 0 0;
       color: inherit;
-      opacity: .75;
+      opacity: .8;
     }
 
+    /* ── Timeline (change history) ── */
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 0 0 0 1.5rem;
+      border-left: 1px solid var(--border);
+    }
+
+    .timeline-item {
+      position: relative;
+      padding-bottom: 1.25rem;
+    }
+
+    .timeline-item:last-child { padding-bottom: 0; }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: calc(-1.5rem - 4px);
+      top: .35rem;
+      width: 7px;
+      height: 7px;
+      background: var(--bg-card);
+      border: 1px solid var(--text-muted);
+    }
+
+    .timeline-date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      color: var(--text-muted);
+      margin-bottom: .4rem;
+    }
+
+    .diff-row {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      line-height: 1.7;
+    }
+
+    .diff-row::before { content: '> '; color: var(--text-muted); }
+    .diff-field { color: var(--text-secondary); }
+    .diff-old { color: var(--danger); }
+    .diff-new { color: var(--accent); }
+
     /* ── Utilities ── */
-    .text-muted  { color: var(--text-secondary); }
+    .text-muted  { color: var(--text-muted); }
     .text-center { text-align: center; }
 
     .grid-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -450,6 +506,7 @@
     <div class="nav-links">
       <a href="/" {% if active == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
       <a href="/hosts" {% if active == 'hosts' %}class="active"{% endif %}>Hosts</a>
+      <a href="/containers" {% if active == 'containers' %}class="active"{% endif %}>Containers</a>
       <a href="/k8s" {% if active == 'k8s' %}class="active"{% endif %}>Kubernetes</a>
       <a href="/import" {% if active == 'import' %}class="active"{% endif %}>Import</a>
       <a href="/generate" {% if active == 'generate' %}class="active"{% endif %}>Generate</a>

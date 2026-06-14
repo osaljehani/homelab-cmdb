@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Host, ImportLog, ImportSource
+from cmdb.domain.services.history import record_snapshot
 
 _DIRECT_MAP: dict[str, str] = {
     "ansible_hostname": "hostname",
@@ -59,10 +60,14 @@ def _extract(facts: dict[str, Any]) -> dict[str, Any]:
     result["gateway"] = ipv4.get("gateway")
 
     apparmor = facts.get("ansible_apparmor") or {}
-    result["apparmor_status"] = apparmor.get("status") if isinstance(apparmor, dict) else None
+    result["apparmor_status"] = (
+        apparmor.get("status") if isinstance(apparmor, dict) else None
+    )
 
     selinux = facts.get("ansible_selinux") or {}
-    result["selinux_status"] = selinux.get("status") if isinstance(selinux, dict) else None
+    result["selinux_status"] = (
+        selinux.get("status") if isinstance(selinux, dict) else None
+    )
 
     return result
 
@@ -84,6 +89,9 @@ def import_host(session: Session, raw_data: dict[str, Any]) -> Host:
     host.raw_facts = facts
     host.last_seen = datetime.now(timezone.utc)
     session.flush()
+
+    # Record a change-history snapshot when meaningful fields changed.
+    record_snapshot(session, host, fields)
     return host
 
 
@@ -107,7 +115,9 @@ def _parse_file(path: Path) -> list[dict[str, Any]]:
 
 def import_from_path(session: Session, path: str, source: ImportSource) -> ImportLog:
     target = Path(path)
-    files = [target] if target.is_file() else [f for f in target.iterdir() if f.is_file()]
+    files = (
+        [target] if target.is_file() else [f for f in target.iterdir() if f.is_file()]
+    )
 
     upserted = 0
     failed = 0

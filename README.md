@@ -3,11 +3,21 @@
 A homelab inventory and CMDB tool. Feed it Ansible facts and browse your infrastructure through a web UI or the CLI.
 
 - **Backend:** FastAPI + SQLite (via SQLAlchemy/Alembic)
-- **Frontend:** HTMX + Jinja2 templates
+- **Frontend:** HTMX + Jinja2 templates, graphite terminal-style dark theme
 - **CLI:** Typer
-- **Import source:** Ansible `setup` module facts
+- **Import sources:** Ansible `setup` module facts, Docker (`docker ps`), Kubernetes (`kubectl`)
 
 Hosts are upserted on `ansible_machine_id`, so re-importing the same machine updates it without creating duplicates.
+
+## Features
+
+- **Hosts**   identity, OS, hardware, network, security (AppArmor/SELinux/FIPS) and virtualization, imported from Ansible facts. Tag and search hosts.
+- **Docker inventory**   track containers per host (image, state, ports, compose project). Re-importing a host replaces its container set, so removed containers disappear.
+- **Kubernetes**   model clusters, nodes (by role) and namespaces, imported from `kubectl`.
+- **Change history**   every import snapshots a host's meaningful fields and records a per-host diff timeline (e.g. a kernel upgrade or IP change), skipping volatile values like uptime.
+- **Generate**   Ansible inventory (YAML/INI) and SSH config from your inventory.
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
 ---
 
@@ -75,14 +85,39 @@ uv run cmdb import ansible ./out/
 
 ---
 
+## Collecting Docker containers
+
+Run the export helper on each Docker host (it reads `docker ps`) and import the JSON. The host
+must already exist in the CMDB (imported via Ansible)   containers are matched to it by hostname/FQDN.
+
+```bash
+# On the Docker host (requires docker + jq):
+./scripts/docker-export.sh > my-host-docker.json
+
+# Then import it (web UI Import page, or CLI):
+uv run cmdb import docker ./my-host-docker.json
+```
+
+The JSON format is `{"host": "<hostname>", "containers": [ ... ]}`; raw
+`docker ps --format '{{json .}}'` fields are also accepted. Re-importing a host replaces its
+entire container set.
+
+---
+
 ## CLI reference
 
 ```bash
-uv run cmdb hosts list           # list all hosts
-uv run cmdb hosts show <id>      # show host detail
-uv run cmdb import ansible <path> # import from file or directory
-uv run cmdb serve                # start the web UI
-uv run cmdb db upgrade           # run database migrations
+uv run cmdb hosts list            # list all hosts
+uv run cmdb hosts show <hostname> # show host detail
+uv run cmdb hosts history <hostname> # show a host's change history (field diffs)
+uv run cmdb hosts tag <hostname> <tag>   # add a tag
+uv run cmdb hosts untag <hostname> <tag> # remove a tag
+uv run cmdb import ansible <path> # import hosts from Ansible facts (file or directory)
+uv run cmdb import docker <path>  # import containers from docker-export.sh JSON
+uv run cmdb import k8s <path>     # import K8s topology from k8s-export.sh JSON
+uv run cmdb generate inventory --format yaml|ini  # generate Ansible inventory
+uv run cmdb serve                 # start the web UI
+uv run cmdb db upgrade            # run database migrations
 ```
 
 ---
@@ -115,8 +150,11 @@ cmdb/
   cli/          CLI entry points (thin shell over domain)
   web/          FastAPI routes and Jinja2 templates (thin shell over domain)
   domain/
-    models/     SQLAlchemy models
-    services/   All business logic lives here
+    models.py   SQLAlchemy models
+    services/   All business logic lives here (ansible, docker_import, k8s, history, generate)
+  db/           Session + Alembic migrations
+scripts/        Export helpers (docker-export.sh, k8s-export.sh)
 tests/          pytest test suite
+docs/           Roadmap and additional docs
 data/           Database volume mount (Docker)
 ```

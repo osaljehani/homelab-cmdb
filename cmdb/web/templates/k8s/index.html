@@ -29,10 +29,22 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" style="color:#999;text-align:center">No nodes yet.</td></tr>
+        <tr><td colspan="4" class="text-muted text-center">No nodes yet.</td></tr>
         {% endfor %}
         </tbody>
       </table>
+      {% if cluster.namespaces %}
+      <div style="margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem;">
+        <div style="font-size:.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem;">
+          Namespaces <span style="color:var(--accent);">{{ cluster.namespaces | length }}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.35rem;">
+          {% for ns in cluster.namespaces | sort(attribute='name') %}
+          <span class="badge" style="font-size:.7rem;font-family:'JetBrains Mono',monospace;">{{ ns.name }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
       <form method="post" action="/k8s/nodes" style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
         <input type="hidden" name="cluster" value="{{ cluster.name }}">
         <select name="hostname">

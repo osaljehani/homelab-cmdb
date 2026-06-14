@@ -4,7 +4,14 @@ from rich.panel import Panel
 from rich.table import Table
 
 from cmdb.db.session import get_session
-from cmdb.domain.services.hosts import add_tag, delete_host, get_host, list_hosts, remove_tag
+from cmdb.domain.services.hosts import (
+    add_tag,
+    delete_host,
+    get_host,
+    list_hosts,
+    remove_tag,
+)
+from cmdb.domain.services.history import host_history
 
 app = typer.Typer(help="Manage hosts", no_args_is_help=True)
 console = Console()
@@ -68,6 +75,30 @@ def show_cmd(hostname: str) -> None:
         )
         host_name = host.hostname
     console.print(Panel(content, title=host_name))
+
+
+@app.command("history")
+def history_cmd(hostname: str) -> None:
+    """Show the change history (field diffs) for a host."""
+    with get_session() as session:
+        host = get_host(session, hostname)
+        if not host:
+            console.print(f"[red]Host '{hostname}' not found[/red]")
+            raise typer.Exit(1)
+        timeline = host_history(session, host)
+        if not timeline:
+            console.print(f"[yellow]No history recorded for '{hostname}' yet[/yellow]")
+            return
+        for entry in timeline:
+            when = entry["captured_at"].strftime("%Y-%m-%d %H:%M")
+            if entry["initial"]:
+                console.print(f"[dim]{when}[/dim]  initial import")
+            else:
+                console.print(f"[dim]{when}[/dim]")
+                for field, old, new in entry["changes"]:
+                    console.print(
+                        f"  [cyan]{field}[/cyan]: [red]{old}[/red] → [green]{new}[/green]"
+                    )
 
 
 @app.command("tag")

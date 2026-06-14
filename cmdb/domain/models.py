@@ -2,8 +2,15 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer,
-    String, Text, Table, UniqueConstraint,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Table,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.types import JSON, Enum as SAEnum
@@ -66,7 +73,18 @@ class Host(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     tags = relationship("Tag", secondary=host_tags, back_populates="hosts")
-    k8s_nodes = relationship("K8sNode", back_populates="host", cascade="all, delete-orphan")
+    k8s_nodes = relationship(
+        "K8sNode", back_populates="host", cascade="all, delete-orphan"
+    )
+    containers = relationship(
+        "Container", back_populates="host", cascade="all, delete-orphan"
+    )
+    snapshots = relationship(
+        "HostSnapshot",
+        back_populates="host",
+        cascade="all, delete-orphan",
+        order_by="HostSnapshot.captured_at.desc()",
+    )
 
 
 class Tag(Base):
@@ -76,6 +94,35 @@ class Tag(Base):
     name = Column(String, unique=True, nullable=False)
 
     hosts = relationship("Host", secondary=host_tags, back_populates="tags")
+
+
+class Container(Base):
+    __tablename__ = "containers"
+    __table_args__ = (UniqueConstraint("host_id", "name"),)
+
+    id = Column(Integer, primary_key=True)
+    host_id = Column(Integer, ForeignKey("hosts.id"), nullable=False)
+    name = Column(String, nullable=False)
+    image = Column(String)
+    status = Column(String)
+    state = Column(String)
+    ports = Column(String)
+    compose_project = Column(String)
+    last_seen = Column(DateTime, default=datetime.utcnow)
+
+    host = relationship("Host", back_populates="containers")
+
+
+class HostSnapshot(Base):
+    __tablename__ = "host_snapshots"
+
+    id = Column(Integer, primary_key=True)
+    host_id = Column(Integer, ForeignKey("hosts.id"), nullable=False)
+    import_log_id = Column(Integer, ForeignKey("import_logs.id"), nullable=True)
+    captured_at = Column(DateTime, default=datetime.utcnow)
+    fields = Column(JSON, nullable=False)
+
+    host = relationship("Host", back_populates="snapshots")
 
 
 class K8sNodeRole(str, Enum):
@@ -91,8 +138,12 @@ class K8sCluster(Base):
     name = Column(String, unique=True, nullable=False)
     description = Column(Text)
 
-    nodes = relationship("K8sNode", back_populates="cluster", cascade="all, delete-orphan")
-    namespaces = relationship("K8sNamespace", back_populates="cluster", cascade="all, delete-orphan")
+    nodes = relationship(
+        "K8sNode", back_populates="cluster", cascade="all, delete-orphan"
+    )
+    namespaces = relationship(
+        "K8sNamespace", back_populates="cluster", cascade="all, delete-orphan"
+    )
 
 
 class K8sNode(Base):
@@ -133,6 +184,7 @@ class ImportLog(Base):
     filename = Column(String)
     hosts_upserted = Column(Integer, default=0)
     hosts_failed = Column(Integer, default=0)
+    containers_upserted = Column(Integer, nullable=True)
     k8s_clusters_upserted = Column(Integer, nullable=True)
     k8s_nodes_upserted = Column(Integer, nullable=True)
     k8s_namespaces_upserted = Column(Integer, nullable=True)

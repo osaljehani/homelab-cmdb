@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Containers   HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Containers</h1>
+
+{% for host in hosts %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h2 style="margin:0;"><a href="/hosts/{{ host.hostname }}">{{ host.hostname }}</a></h2>
+    <span class="badge">{{ host.containers | length }}</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Image</th><th>State</th><th>Status</th><th>Ports</th><th>Compose</th></tr>
+    </thead>
+    <tbody>
+    {% for c in host.containers | sort(attribute='name') %}
+      <tr>
+        <td><strong>{{ c.name }}</strong></td>
+        <td class="text-muted" style="font-size:.85rem;">{{ c.image or ' ' }}</td>
+        <td>{% if c.state %}<span class="badge{% if c.state|lower not in ['running','up'] %} badge-red{% endif %}">{{ c.state }}</span>{% else %} {% endif %}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ c.status or ' ' }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ c.ports or ' ' }}</td>
+        <td>{% if c.compose_project %}<span class="badge">{{ c.compose_project }}</span>{% else %} {% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card text-muted text-center" style="padding:2rem;">
+  No containers yet. Import them from the <a href="/import" style="color:var(--accent);">Import</a> page
+  using <code>scripts/docker-export.sh</code>.
+</div>
+{% endfor %}
+{% endblock %}
