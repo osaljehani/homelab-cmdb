@@ -12,6 +12,7 @@ from cmdb.domain.services.hosts import (
     remove_tag,
 )
 from cmdb.domain.services.history import host_history
+from cmdb.domain.services.security import host_posture
 
 app = typer.Typer(help="Manage hosts", no_args_is_help=True)
 console = Console()
@@ -30,11 +31,14 @@ def list_cmd(
     table.add_column("CPU")
     table.add_column("RAM (MB)")
     table.add_column("Tags")
+    table.add_column("Security")
 
     with get_session() as session:
         hosts = list_hosts(session, tag=tag, os_family=os)
         table.title = f"Hosts ({len(hosts)})"
         for h in hosts:
+            p = host_posture(h)
+            security = p.mac if p.hardened else "[red]exposed[/red]"
             table.add_row(
                 h.hostname,
                 h.primary_ipv4 or "",
@@ -42,6 +46,7 @@ def list_cmd(
                 f"{h.cpu_cores or ''}c/{h.cpu_threads or ''}t",
                 str(h.memory_mb or ""),
                 ", ".join(t.name for t in h.tags),
+                security,
             )
     console.print(table)
 
@@ -55,6 +60,12 @@ def show_cmd(hostname: str) -> None:
             console.print(f"[red]Host '{hostname}' not found[/red]")
             raise typer.Exit(1)
         tags_str = ", ".join(t.name for t in host.tags) or "none"
+        posture = host_posture(host)
+        if posture.hardened:
+            posture_str = f"[green]hardened[/green] via {posture.mac}"
+        else:
+            posture_str = "[red]EXPOSED[/red]   " + "; ".join(posture.issues)
+        fips_str = "on" if host.fips else "off"
         content = (
             f"[bold]Hostname:[/bold]     {host.hostname}\n"
             f"[bold]FQDN:[/bold]         {host.fqdn or '-'}\n"
@@ -68,8 +79,10 @@ def show_cmd(hostname: str) -> None:
             f"[bold]RAM:[/bold]          {host.memory_mb} MB\n"
             f"[bold]Vendor:[/bold]       {host.system_vendor} {host.product_name}\n"
             f"[bold]Virt:[/bold]         {host.virt_type}/{host.virt_role}\n"
+            f"[bold]Security:[/bold]     {posture_str}\n"
             f"[bold]AppArmor:[/bold]     {host.apparmor_status or '-'}\n"
             f"[bold]SELinux:[/bold]      {host.selinux_status or '-'}\n"
+            f"[bold]FIPS:[/bold]         {fips_str}\n"
             f"[bold]Tags:[/bold]         {tags_str}\n"
             f"[bold]Last seen:[/bold]    {host.last_seen}"
         )
