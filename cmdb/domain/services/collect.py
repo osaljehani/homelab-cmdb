@@ -25,6 +25,7 @@ from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
 from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
 from cmdb.domain.services.k8s_import import import_cluster, parse_kubectl_json
+from cmdb.domain.services.ports_import import import_ports, parse_ss
 
 # One JSON object per line. We use `--format json` (Docker >= 23.0) rather than the
 # `{{json .}}` Go-template form: Ansible runs the shell module's args through Jinja2,
@@ -53,6 +54,11 @@ $KUBECTL get namespaces -o json
 # kubeconfig contexts too generic to use as a CMDB cluster name; fall back to the
 # control-plane host's inventory name instead.
 _GENERIC_K8S_CONTEXTS = {"", "default", "kubernetes"}
+
+# `-H` headerless, `-tulpn` = tcp+udp listening, numeric, with process. sudo (if
+# passwordless) reveals processes owned by other users; otherwise ss still lists the
+# sockets and the process column is simply blank.
+_PORTS_CMD = "sudo -n ss -H -tulpn 2>/dev/null || ss -H -tulpn"
 
 # Give a slow homelab room to answer, but don't hang a web request forever.
 _TIMEOUT_SECONDS = 300
@@ -341,6 +347,64 @@ def collect_docker(
         hosts_upserted=0,
         hosts_failed=0,
         containers_upserted=upserted,
+        notes="\n".join(errors) or None,
+    )
+    session.add(log)
+    session.flush()
+    return log
+
+
+def collect_ports(
+    session: Session,
+    inventory: str | None = None,
+    limit: str | None = None,
+    source: ImportSource = ImportSource.COLLECT,
+) -> ImportLog:
+    """Gather `ss -tulpn` live and import each host's listening ports."""
+    with (
+        inventory_for(session, inventory) as inv,
+        tempfile.TemporaryDirectory() as tree,
+    ):
+        result = _run(_ansible_cmd(inv, limit, "shell", _PORTS_CMD, tree))
+        inv_label = _inventory_label(inventory, inv)
+
+        upserted = 0
+        errors: list[str] = []
+        tree_files = _tree_files(tree)
+        for f in tree_files:
+            inv_host = f.name
+            try:
+                data = json.loads(f.read_text())
+            except Exception as exc:
+                errors.append(f"{inv_host}: could not read result: {exc}")
+                continue
+
+            if data.get("unreachable") or data.get("failed") or data.get("rc", 0) != 0:
+                reason = data.get("msg") or data.get("stderr") or "collection failed"
+                errors.append(f"{inv_host}: {reason.strip()}")
+                continue
+
+            try:
+                ports = parse_ss(data.get("stdout") or "")
+                counts = import_ports(session, {"host": inv_host, "ports": ports})
+                upserted += counts["ports"]
+            except Exception as exc:
+                errors.append(f"{inv_host}: {exc}")
+
+    if result.returncode != 0:
+        detail = _strip_ansible_warnings(result.stderr)
+        if not detail and not tree_files:
+            detail = _strip_ansible_warnings(result.stdout)
+        if detail:
+            errors.append(detail)
+
+    target = limit or "all"
+    log = ImportLog(
+        source=source,
+        filename=f"collect ports ({inv_label} :: {target})",
+        hosts_upserted=0,
+        hosts_failed=0,
+        listening_ports_upserted=upserted,
         notes="\n".join(errors) or None,
     )
     session.add(log)
