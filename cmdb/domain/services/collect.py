@@ -13,6 +13,8 @@ Requires the ``ansible`` binary on PATH (install the ``collect`` dependency grou
 import json
 import subprocess
 import tempfile
+from contextlib import contextmanager
+from collections.abc import Iterator
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -21,6 +23,7 @@ from cmdb.config import settings
 from cmdb.domain.models import ImportLog, ImportSource
 from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
+from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
 
 # Same command scripts/docker-export.sh runs; one JSON object per line.
 _DOCKER_PS_CMD = "docker ps --all --no-trunc --format '{{json .}}'"
@@ -33,15 +36,39 @@ class CollectError(Exception):
     """Raised when collection cannot start at all (no inventory, ansible missing)."""
 
 
-def resolve_inventory(explicit: str | None = None) -> str:
-    """Return the inventory path to use, falling back to CMDB_ANSIBLE_INVENTORY."""
-    inventory = explicit or settings.ansible_inventory
-    if not inventory:
+def resolve_inventory(explicit: str | None = None) -> str | None:
+    """Return an explicit/env inventory path, or None to generate one from the DB."""
+    return explicit or settings.ansible_inventory
+
+
+@contextmanager
+def inventory_for(session: Session, explicit: str | None = None) -> Iterator[str]:
+    """Yield an Ansible inventory path to run against.
+
+    An explicit path (CLI ``-i`` or an uploaded file) or ``CMDB_ANSIBLE_INVENTORY`` is
+    used as-is. Otherwise a self-contained inventory is generated from the database
+    (hosts + SSH vars) into a temp file that is removed when the context exits.
+    """
+    path = resolve_inventory(explicit)
+    if path:
+        yield path
+        return
+
+    if not _get_hosts(session):
         raise CollectError(
-            "No Ansible inventory configured. Pass --inventory or set "
-            "CMDB_ANSIBLE_INVENTORY."
+            "No hosts in database and no inventory provided. Add hosts or pass an "
+            "inventory (--inventory / upload / CMDB_ANSIBLE_INVENTORY)."
         )
-    return inventory
+
+    tmp = tempfile.NamedTemporaryFile(
+        "w", suffix=".yml", prefix="cmdb-inventory-", delete=False
+    )
+    try:
+        tmp.write(generate_inventory_yaml(session, include_ssh_vars=True))
+        tmp.close()
+        yield tmp.name
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
 
 
 def _ansible_cmd(inventory: str, limit: str | None, module: str, args: str | None,
@@ -74,6 +101,15 @@ def _tree_files(tree: str) -> list[Path]:
     return [f for f in Path(tree).iterdir() if f.is_file()]
 
 
+def _inventory_label(explicit: str | None, resolved: str) -> str:
+    """A human-friendly inventory name for import logs.
+
+    A generated temp inventory has an opaque path, so label it ``generated from DB``
+    rather than leaking the tempfile name into the log.
+    """
+    return resolved if resolve_inventory(explicit) else "generated from DB"
+
+
 def collect_facts(
     session: Session,
     inventory: str | None = None,
@@ -81,15 +117,18 @@ def collect_facts(
     source: ImportSource = ImportSource.COLLECT,
 ) -> ImportLog:
     """Gather Ansible facts live and import them via the existing fact pipeline."""
-    inventory = resolve_inventory(inventory)
-    with tempfile.TemporaryDirectory() as tree:
-        result = _run(_ansible_cmd(inventory, limit, "setup", None, tree))
+    with (
+        inventory_for(session, inventory) as inv,
+        tempfile.TemporaryDirectory() as tree,
+    ):
+        result = _run(_ansible_cmd(inv, limit, "setup", None, tree))
         # ansible writes one JSON file per attempted host (success or failure) into
         # the tree; import_from_path turns each into a host (failures land in notes).
         log = ansible_svc.import_from_path(session, tree, source)
+        inv_label = _inventory_label(inventory, inv)
 
     target = limit or "all"
-    log.filename = f"collect setup ({inventory} :: {target})"
+    log.filename = f"collect setup ({inv_label} :: {target})"
     if result.returncode != 0 and result.stderr.strip():
         note = result.stderr.strip()
         log.notes = f"{log.notes}\n{note}" if log.notes else note
@@ -104,9 +143,12 @@ def collect_docker(
     source: ImportSource = ImportSource.COLLECT,
 ) -> ImportLog:
     """Gather `docker ps` live and import containers via the existing pipeline."""
-    inventory = resolve_inventory(inventory)
-    with tempfile.TemporaryDirectory() as tree:
-        result = _run(_ansible_cmd(inventory, limit, "shell", _DOCKER_PS_CMD, tree))
+    with (
+        inventory_for(session, inventory) as inv,
+        tempfile.TemporaryDirectory() as tree,
+    ):
+        result = _run(_ansible_cmd(inv, limit, "shell", _DOCKER_PS_CMD, tree))
+        inv_label = _inventory_label(inventory, inv)
 
         upserted = 0
         errors: list[str] = []
@@ -149,7 +191,7 @@ def collect_docker(
     target = limit or "all"
     log = ImportLog(
         source=source,
-        filename=f"collect docker ({inventory} :: {target})",
+        filename=f"collect docker ({inv_label} :: {target})",
         hosts_upserted=0,
         hosts_failed=0,
         containers_upserted=upserted,

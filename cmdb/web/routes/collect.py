@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, Form, Request
+import tempfile
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from cmdb.config import settings
@@ -31,10 +34,11 @@ def collect_page(request: Request, db: Session = Depends(get_db_dep)):
 
 
 @router.post("/run")
-def collect_run(
+async def collect_run(
     request: Request,
     mode: str = Form("all"),
     limit: str = Form(""),
+    inventory: UploadFile | None = File(None),
     db: Session = Depends(get_db_dep),
 ):
     limit_val = limit.strip() or None
@@ -42,14 +46,27 @@ def collect_run(
     last_result: ImportLog | None = None
     last_result_type = mode
 
+    # An uploaded inventory is used for this run only; otherwise pass None so the
+    # collect service falls back to env var / DB-generated inventory.
+    inv_tmp: str | None = None
+    if inventory is not None:
+        content = await inventory.read()
+        if content.strip():
+            tmp = tempfile.NamedTemporaryFile(
+                "wb", suffix=".yml", prefix="cmdb-upload-", delete=False
+            )
+            tmp.write(content)
+            tmp.close()
+            inv_tmp = tmp.name
+
     try:
         if mode == "facts":
-            last_result = collect_facts(db, None, limit_val, ImportSource.COLLECT)
+            last_result = collect_facts(db, inv_tmp, limit_val, ImportSource.COLLECT)
         elif mode == "docker":
-            last_result = collect_docker(db, None, limit_val, ImportSource.COLLECT)
+            last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
         else:  # all   facts then docker; surface the docker log, facts errors merge in
-            facts_log = collect_facts(db, None, limit_val, ImportSource.COLLECT)
-            last_result = collect_docker(db, None, limit_val, ImportSource.COLLECT)
+            facts_log = collect_facts(db, inv_tmp, limit_val, ImportSource.COLLECT)
+            last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
             last_result.hosts_upserted = facts_log.hosts_upserted
             last_result.hosts_failed = facts_log.hosts_failed
             if facts_log.notes:
@@ -59,6 +76,9 @@ def collect_run(
             last_result_type = "all"
     except CollectError as exc:
         error = str(exc)
+    finally:
+        if inv_tmp is not None:
+            Path(inv_tmp).unlink(missing_ok=True)
 
     return templates.TemplateResponse(
         request,
