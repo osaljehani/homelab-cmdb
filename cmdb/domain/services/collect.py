@@ -31,7 +31,16 @@ from cmdb.domain.services.tailscale_import import import_tailscale, parse_tailsc
 # One JSON object per line. We use `--format json` (Docker >= 23.0) rather than the
 # `{{json .}}` Go-template form: Ansible runs the shell module's args through Jinja2,
 # which parses `{{...}}` as an expression and fails before docker ever runs.
-_DOCKER_PS_CMD = "docker ps --all --no-trunc --format json"
+#
+# Guard on `command -v docker` first: a host without docker (e.g. a pure k3s node)
+# would otherwise fail with rc 127 and surface a misleading generic error. Instead it
+# prints the `status=no-docker` sentinel and exits 0, and is skipped quietly   mirroring
+# how the k8s probe emits `status=no-k8s` for non-control-plane hosts.
+_DOCKER_PS_CMD = (
+    "if ! command -v docker >/dev/null 2>&1; then echo status=no-docker; exit 0; fi\n"
+    "docker ps --all --no-trunc --format json"
+)
+_NO_DOCKER_SENTINEL = "status=no-docker"
 
 # Probe a host for a usable control-plane kubectl and, if found, emit a
 # marker-delimited blob of raw `kubectl -o json` (transformed in Python   the remote
@@ -336,6 +345,12 @@ def collect_docker(
             if data.get("unreachable") or data.get("failed") or data.get("rc", 0) != 0:
                 reason = data.get("msg") or data.get("stderr") or "collection failed"
                 errors.append(f"{inv_host}: {reason.strip()}")
+                continue
+
+            if (data.get("stdout") or "").strip() == _NO_DOCKER_SENTINEL:
+                # Host has no docker installed   expected (e.g. a k3s node); skip
+                # quietly. Crucially, don't fall through to import_containers with an
+                # empty set, which would wipe any previously-collected containers.
                 continue
 
             containers = []
