@@ -7,6 +7,7 @@ from cmdb.domain.services.collect import (
     CollectError,
     collect_docker,
     collect_facts,
+    collect_k8s,
 )
 
 app = typer.Typer(help="Collect inventory on demand over SSH (via Ansible)")
@@ -54,12 +55,36 @@ def collect_docker_cmd(
         console.print(f"[yellow]Warnings:[/yellow]\n{notes}")
 
 
+@app.command("k8s")
+def collect_k8s_cmd(
+    inventory: str = _INVENTORY,
+    limit: str = _LIMIT,
+) -> None:
+    """Discover K8s clusters live (kubectl over SSH) and import nodes + namespaces."""
+    try:
+        with get_session() as session:
+            log = collect_k8s(session, inventory, limit, ImportSource.COLLECT)
+            clusters = log.k8s_clusters_upserted
+            nodes = log.k8s_nodes_upserted
+            namespaces = log.k8s_namespaces_upserted
+            notes = log.notes
+    except CollectError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1)
+    console.print(
+        f"[green]Collected:[/green] {clusters} clusters, {nodes} nodes, "
+        f"{namespaces} namespaces"
+    )
+    if notes:
+        console.print(f"[yellow]Warnings:[/yellow]\n{notes}")
+
+
 @app.command("all")
 def collect_all_cmd(
     inventory: str = _INVENTORY,
     limit: str = _LIMIT,
 ) -> None:
-    """Gather facts then Docker containers in one pass."""
+    """Gather facts, Docker containers, then K8s clusters in one pass."""
     try:
         with get_session() as session:
             facts_log = collect_facts(session, inventory, limit, ImportSource.COLLECT)
@@ -68,12 +93,17 @@ def collect_all_cmd(
         with get_session() as session:
             docker_log = collect_docker(session, inventory, limit, ImportSource.COLLECT)
             d_count, d_notes = docker_log.containers_upserted, docker_log.notes
+        with get_session() as session:
+            k8s_log = collect_k8s(session, inventory, limit, ImportSource.COLLECT)
+            k_clusters, k_nodes = k8s_log.k8s_clusters_upserted, k8s_log.k8s_nodes_upserted
+            k_notes = k8s_log.notes
     except CollectError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1)
     console.print(
-        f"[green]Collected:[/green] {f_up} hosts ({f_fail} failed), {d_count} containers"
+        f"[green]Collected:[/green] {f_up} hosts ({f_fail} failed), {d_count} containers, "
+        f"{k_clusters} clusters ({k_nodes} nodes)"
     )
-    for label, notes in (("facts", f_notes), ("docker", d_notes)):
+    for label, notes in (("facts", f_notes), ("docker", d_notes), ("k8s", k_notes)):
         if notes:
             console.print(f"[yellow]{label} warnings:[/yellow]\n{notes}")

@@ -24,11 +24,35 @@ from cmdb.domain.models import ImportLog, ImportSource
 from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
 from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
+from cmdb.domain.services.k8s_import import import_cluster, parse_kubectl_json
 
 # One JSON object per line. We use `--format json` (Docker >= 23.0) rather than the
 # `{{json .}}` Go-template form: Ansible runs the shell module's args through Jinja2,
 # which parses `{{...}}` as an expression and fails before docker ever runs.
 _DOCKER_PS_CMD = "docker ps --all --no-trunc --format json"
+
+# Probe a host for a usable control-plane kubectl and, if found, emit a
+# marker-delimited blob of raw `kubectl -o json` (transformed in Python   the remote
+# may lack jq). A host with no control-plane kubectl prints `status=no-k8s` and is
+# skipped. No `{{ }}`: Ansible's shell module runs args through Jinja2 (see _DOCKER_PS_CMD).
+_K8S_PROBE_CMD = """\
+KUBECTL=""
+for c in "kubectl" "k3s kubectl" "sudo -n kubectl" "sudo -n k3s kubectl"; do
+  if $c get nodes >/dev/null 2>&1; then KUBECTL="$c"; break; fi
+done
+if [ -z "$KUBECTL" ]; then echo "status=no-k8s"; exit 0; fi
+echo "__CMDB_K8S__"
+echo "status=ok"
+echo "context=$($KUBECTL config current-context 2>/dev/null)"
+echo "__NODES__"
+$KUBECTL get nodes -o json
+echo "__NAMESPACES__"
+$KUBECTL get namespaces -o json
+"""
+
+# kubeconfig contexts too generic to use as a CMDB cluster name; fall back to the
+# control-plane host's inventory name instead.
+_GENERIC_K8S_CONTEXTS = {"", "default", "kubernetes"}
 
 # Give a slow homelab room to answer, but don't hang a web request forever.
 _TIMEOUT_SECONDS = 300
@@ -148,6 +172,104 @@ def collect_facts(
         note = _strip_ansible_warnings(result.stderr)
         if note:
             log.notes = f"{log.notes}\n{note}" if log.notes else note
+    session.flush()
+    return log
+
+
+def _parse_k8s_blob(stdout: str) -> dict[str, str] | None:
+    """Split the probe's marker-delimited stdout into its parts.
+
+    Returns ``{context, nodes_raw, ns_raw}`` for a control-plane host, or ``None`` when
+    the host is not a control-plane (no ``__NODES__``/``__NAMESPACES__`` markers).
+    """
+    if "__NODES__" not in stdout or "__NAMESPACES__" not in stdout:
+        return None
+    head, _, rest = stdout.partition("__NODES__")
+    nodes_raw, _, ns_raw = rest.partition("__NAMESPACES__")
+    context = ""
+    for line in head.splitlines():
+        if line.startswith("context="):
+            context = line[len("context="):].strip()
+    return {"context": context, "nodes_raw": nodes_raw.strip(), "ns_raw": ns_raw.strip()}
+
+
+def collect_k8s(
+    session: Session,
+    inventory: str | None = None,
+    limit: str | None = None,
+    source: ImportSource = ImportSource.COLLECT,
+) -> ImportLog:
+    """Discover K8s clusters live (kubectl over SSH) and import nodes + namespaces.
+
+    Each control-plane host enumerates its whole cluster in one pass, so workers are
+    discovered without being reached directly. Hosts that aren't control-planes are
+    skipped silently (``import_cluster`` is additive   skipping never wipes data).
+    """
+    with (
+        inventory_for(session, inventory) as inv,
+        tempfile.TemporaryDirectory() as tree,
+    ):
+        result = _run(_ansible_cmd(inv, limit, "shell", _K8S_PROBE_CMD, tree))
+        inv_label = _inventory_label(inventory, inv)
+
+        clusters = nodes = namespaces = 0
+        errors: list[str] = []
+        tree_files = _tree_files(tree)
+        for f in tree_files:
+            inv_host = f.name
+            try:
+                data = json.loads(f.read_text())
+            except Exception as exc:
+                errors.append(f"{inv_host}: could not read result: {exc}")
+                continue
+
+            if data.get("unreachable") or data.get("failed") or data.get("rc", 0) != 0:
+                reason = data.get("msg") or data.get("stderr") or "collection failed"
+                errors.append(f"{inv_host}: {reason.strip()}")
+                continue
+
+            blob = _parse_k8s_blob(data.get("stdout") or "")
+            if blob is None:
+                # Not a control-plane (no usable kubectl)   expected for workers and
+                # non-k8s hosts; skip quietly rather than logging noise.
+                continue
+
+            context = blob["context"]
+            cluster_name = (
+                inv_host if context.lower() in _GENERIC_K8S_CONTEXTS else context
+            )
+            try:
+                cluster_data = parse_kubectl_json(
+                    blob["nodes_raw"], blob["ns_raw"], cluster_name
+                )
+                counts = import_cluster(session, cluster_data)
+                clusters += counts["clusters"]
+                nodes += counts["nodes"]
+                namespaces += counts["namespaces"]
+                errors.extend(f"{inv_host}: {e}" for e in counts["errors"])
+            except Exception as exc:
+                errors.append(f"{inv_host}: {exc}")
+
+    if result.returncode != 0:
+        # See collect_docker: a failure before any per-host result lands on stdout.
+        detail = _strip_ansible_warnings(result.stderr)
+        if not detail and not tree_files:
+            detail = _strip_ansible_warnings(result.stdout)
+        if detail:
+            errors.append(detail)
+
+    target = limit or "all"
+    log = ImportLog(
+        source=source,
+        filename=f"collect k8s ({inv_label} :: {target})",
+        hosts_upserted=0,
+        hosts_failed=0,
+        k8s_clusters_upserted=clusters,
+        k8s_nodes_upserted=nodes,
+        k8s_namespaces_upserted=namespaces,
+        notes="\n".join(errors) or None,
+    )
+    session.add(log)
     session.flush()
     return log
 
