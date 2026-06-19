@@ -103,6 +103,19 @@ def _tree_files(tree: str) -> list[Path]:
     return [f for f in Path(tree).iterdir() if f.is_file()]
 
 
+def _strip_ansible_warnings(text: str) -> str:
+    """Drop ansible's cosmetic ``[WARNING]`` / ``[DEPRECATION WARNING]`` lines.
+
+    These (e.g. Python interpreter-discovery notices) are emitted to stderr on every
+    run and only add noise to the import-log notes.
+    """
+    kept = [
+        ln for ln in text.splitlines()
+        if not ln.lstrip().startswith(("[WARNING]", "[DEPRECATION WARNING]"))
+    ]
+    return "\n".join(kept).strip()
+
+
 def _inventory_label(explicit: str | None, resolved: str) -> str:
     """A human-friendly inventory name for import logs.
 
@@ -131,9 +144,10 @@ def collect_facts(
 
     target = limit or "all"
     log.filename = f"collect setup ({inv_label} :: {target})"
-    if result.returncode != 0 and result.stderr.strip():
-        note = result.stderr.strip()
-        log.notes = f"{log.notes}\n{note}" if log.notes else note
+    if result.returncode != 0:
+        note = _strip_ansible_warnings(result.stderr)
+        if note:
+            log.notes = f"{log.notes}\n{note}" if log.notes else note
     session.flush()
     return log
 
@@ -192,9 +206,9 @@ def collect_docker(
         # Prefer stderr, but when ansible fails before producing any per-host result
         # (e.g. bad inventory or an arg-templating error) the message lands on stdout
         # with an empty stderr   surface it instead of silently reporting zero.
-        detail = result.stderr.strip()
+        detail = _strip_ansible_warnings(result.stderr)
         if not detail and not tree_files:
-            detail = result.stdout.strip()
+            detail = _strip_ansible_warnings(result.stdout)
         if detail:
             errors.append(detail)
 
