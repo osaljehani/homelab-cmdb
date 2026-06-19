@@ -173,6 +173,7 @@ class K8sNamespace(Base):
 class ImportSource(str, Enum):
     CLI = "cli"
     WEB = "web"
+    COLLECT = "collect"
 
 
 class ImportLog(Base):

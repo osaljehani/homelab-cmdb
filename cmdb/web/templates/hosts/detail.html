@@ -6,6 +6,11 @@
     <a href="/hosts" style="color:var(--text-muted);font-size:.9rem;">← Hosts</a>
     <h1 style="margin:.25rem 0 0;">{{ host.hostname }}</h1>
   </div>
+  <form action="/collect/run" method="post" title="Re-collect this host over SSH">
+    <input type="hidden" name="mode" value="all">
+    <input type="hidden" name="limit" value="{{ host.hostname }}">
+    <button type="submit" class="btn btn-secondary btn-sm">Collect now</button>
+  </form>
 </div>
 
 <div class="grid-2">
