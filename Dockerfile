@@ -1,10 +1,16 @@
 FROM python:3.12-slim
 
+# openssh-client is needed by `cmdb collect` (Ansible drives ssh for collection).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install uv
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev --compile-bytecode
+# Include the `collect` group so `cmdb collect` (agentless SSH collection) works.
+RUN uv sync --no-dev --group collect --compile-bytecode
 
 COPY cmdb/ cmdb/
 COPY alembic.ini .

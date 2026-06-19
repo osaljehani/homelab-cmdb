@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Collect   HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Collect</h1>
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% endif %}
+
+{% if last_result is defined and last_result %}
+  {% if last_result_type == 'docker' %}
+  <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
+    Docker collection: {{ last_result.containers_upserted }} containers.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
+  {% elif last_result_type == 'facts' %}
+  <div class="flash-{{ 'success' if last_result.hosts_failed == 0 and not last_result.notes else 'error' }}">
+    Facts collection: {{ last_result.hosts_upserted }} upserted, {{ last_result.hosts_failed }} failed.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
+  {% else %}
+  <div class="flash-{{ 'success' if last_result.hosts_failed == 0 and not last_result.notes else 'error' }}">
+    Collection: {{ last_result.hosts_upserted }} hosts ({{ last_result.hosts_failed }} failed), {{ last_result.containers_upserted }} containers.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
+  {% endif %}
+{% endif %}
+
+<div class="card">
+  <h2>On-demand collection</h2>
+  {% if inventory %}
+  <p class="text-muted" style="font-size:.9rem;">
+    Reaches out over SSH (via <code>ansible</code>) using inventory <code>{{ inventory }}</code> and imports the results.
+    Hosts must already exist (collect facts first) for Docker containers to match.
+  </p>
+  <form action="/collect/run" method="post" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
+    <select name="mode" style="width:auto;">
+      <option value="all">Facts + Docker</option>
+      <option value="facts">Facts only</option>
+      <option value="docker">Docker only</option>
+    </select>
+    <input type="text" name="limit" placeholder="host or group (default: all)" style="max-width:280px;">
+    <button type="submit" class="btn">Collect now</button>
+  </form>
+  {% else %}
+  <p class="text-muted" style="font-size:.9rem;">
+    No inventory configured. Set <code>CMDB_ANSIBLE_INVENTORY</code> to an Ansible inventory path
+    (and optionally <code>CMDB_ANSIBLE_USER</code> / <code>CMDB_SSH_PRIVATE_KEY</code>), then restart.
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Recent Runs</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Source</th><th>Detail</th><th>Hosts</th><th>Containers</th><th>Errors</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for log in logs %}
+    <tr>
+      <td>{{ log.imported_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ log.source.value }}</td>
+      <td class="text-muted" style="font-size:.85rem;">{{ log.filename or ' ' }}</td>
+      <td>{{ log.hosts_upserted if log.hosts_upserted else ' ' }}</td>
+      <td>{{ log.containers_upserted if log.containers_upserted is not none else ' ' }}</td>
+      <td>
+        {% if log.hosts_failed %}
+          <span class="badge badge-red">{{ log.hosts_failed }}</span>
+        {% elif log.notes %}
+          <span class="badge badge-red">warns</span>
+        {% else %}0{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="text-muted text-center" style="padding:2rem">No runs yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
