@@ -68,6 +68,11 @@ class Host(Base):
     board_serial = Column(String)
     service_mgr = Column(String)
     uptime_seconds = Column(Integer)
+    tailscale_ipv4 = Column(String)
+    tailscale_dns_name = Column(String)
+    tailscale_tags = Column(String)
+    tailscale_exit_node = Column(Boolean)
+    tailscale_online = Column(Boolean)
     raw_facts = Column(JSON)
     last_seen = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -78,6 +83,12 @@ class Host(Base):
     )
     containers = relationship(
         "Container", back_populates="host", cascade="all, delete-orphan"
+    )
+    tailscale_services = relationship(
+        "TailscaleService", back_populates="host", cascade="all, delete-orphan"
+    )
+    listening_ports = relationship(
+        "ListeningPort", back_populates="host", cascade="all, delete-orphan"
     )
     snapshots = relationship(
         "HostSnapshot",
@@ -111,6 +122,32 @@ class Container(Base):
     last_seen = Column(DateTime, default=datetime.utcnow)
 
     host = relationship("Host", back_populates="containers")
+
+
+class TailscaleService(Base):
+    __tablename__ = "tailscale_services"
+
+    id = Column(Integer, primary_key=True)
+    host_id = Column(Integer, ForeignKey("hosts.id"), nullable=False)
+    proto = Column(String)
+    port = Column(Integer)
+    target = Column(String)
+    funnel = Column(Boolean, default=False)
+
+    host = relationship("Host", back_populates="tailscale_services")
+
+
+class ListeningPort(Base):
+    __tablename__ = "listening_ports"
+
+    id = Column(Integer, primary_key=True)
+    host_id = Column(Integer, ForeignKey("hosts.id"), nullable=False)
+    proto = Column(String)
+    address = Column(String)
+    port = Column(Integer)
+    process = Column(String)
+
+    host = relationship("Host", back_populates="listening_ports")
 
 
 class HostSnapshot(Base):
@@ -189,4 +226,6 @@ class ImportLog(Base):
     k8s_clusters_upserted = Column(Integer, nullable=True)
     k8s_nodes_upserted = Column(Integer, nullable=True)
     k8s_namespaces_upserted = Column(Integer, nullable=True)
+    tailscale_services_upserted = Column(Integer, nullable=True)
+    listening_ports_upserted = Column(Integer, nullable=True)
     notes = Column(Text)
