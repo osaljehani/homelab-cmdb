@@ -25,8 +25,10 @@ from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
 from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
 
-# Same command scripts/docker-export.sh runs; one JSON object per line.
-_DOCKER_PS_CMD = "docker ps --all --no-trunc --format '{{json .}}'"
+# One JSON object per line. We use `--format json` (Docker >= 23.0) rather than the
+# `{{json .}}` Go-template form: Ansible runs the shell module's args through Jinja2,
+# which parses `{{...}}` as an expression and fails before docker ever runs.
+_DOCKER_PS_CMD = "docker ps --all --no-trunc --format json"
 
 # Give a slow homelab room to answer, but don't hang a web request forever.
 _TIMEOUT_SECONDS = 300
@@ -101,6 +103,19 @@ def _tree_files(tree: str) -> list[Path]:
     return [f for f in Path(tree).iterdir() if f.is_file()]
 
 
+def _strip_ansible_warnings(text: str) -> str:
+    """Drop ansible's cosmetic ``[WARNING]`` / ``[DEPRECATION WARNING]`` lines.
+
+    These (e.g. Python interpreter-discovery notices) are emitted to stderr on every
+    run and only add noise to the import-log notes.
+    """
+    kept = [
+        ln for ln in text.splitlines()
+        if not ln.lstrip().startswith(("[WARNING]", "[DEPRECATION WARNING]"))
+    ]
+    return "\n".join(kept).strip()
+
+
 def _inventory_label(explicit: str | None, resolved: str) -> str:
     """A human-friendly inventory name for import logs.
 
@@ -129,9 +144,10 @@ def collect_facts(
 
     target = limit or "all"
     log.filename = f"collect setup ({inv_label} :: {target})"
-    if result.returncode != 0 and result.stderr.strip():
-        note = result.stderr.strip()
-        log.notes = f"{log.notes}\n{note}" if log.notes else note
+    if result.returncode != 0:
+        note = _strip_ansible_warnings(result.stderr)
+        if note:
+            log.notes = f"{log.notes}\n{note}" if log.notes else note
     session.flush()
     return log
 
@@ -152,7 +168,8 @@ def collect_docker(
 
         upserted = 0
         errors: list[str] = []
-        for f in _tree_files(tree):
+        tree_files = _tree_files(tree)
+        for f in tree_files:
             inv_host = f.name
             try:
                 data = json.loads(f.read_text())
@@ -185,8 +202,15 @@ def collect_docker(
             except Exception as exc:
                 errors.append(f"{inv_host}: {exc}")
 
-    if result.returncode != 0 and result.stderr.strip():
-        errors.append(result.stderr.strip())
+    if result.returncode != 0:
+        # Prefer stderr, but when ansible fails before producing any per-host result
+        # (e.g. bad inventory or an arg-templating error) the message lands on stdout
+        # with an empty stderr   surface it instead of silently reporting zero.
+        detail = _strip_ansible_warnings(result.stderr)
+        if not detail and not tree_files:
+            detail = _strip_ansible_warnings(result.stdout)
+        if detail:
+            errors.append(detail)
 
     target = limit or "all"
     log = ImportLog(
