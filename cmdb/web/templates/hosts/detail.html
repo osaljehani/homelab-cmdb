@@ -99,6 +99,57 @@
 </div>
 {% endif %}
 
+{% if host.tailscale_ipv4 or host.tailscale_services %}
+<div class="card" style="margin-top:1rem;">
+  <h2>Tailscale</h2>
+  <table>
+    <tr><th>IP</th><td>{{ host.tailscale_ipv4 or ' ' }}</td></tr>
+    <tr><th>MagicDNS</th><td>{{ host.tailscale_dns_name or ' ' }}</td></tr>
+    <tr><th>Tags</th><td>{{ host.tailscale_tags or ' ' }}</td></tr>
+    <tr><th>Exit node</th><td>{{ 'yes' if host.tailscale_exit_node else 'no' }}</td></tr>
+    <tr><th>Online</th><td>{% if host.tailscale_online %}<span class="badge">online</span>{% else %}<span class="badge badge-red">offline</span>{% endif %}</td></tr>
+  </table>
+  {% if host.tailscale_services %}
+  <h2 style="margin-top:1rem;">Exposed services</h2>
+  <table>
+    <thead><tr><th>Proto</th><th>Port</th><th>Target</th><th>Funnel</th></tr></thead>
+    <tbody>
+    {% for s in host.tailscale_services | sort(attribute='port') %}
+      <tr>
+        <td>{{ s.proto or ' ' }}</td>
+        <td>{{ s.port or ' ' }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ s.target or ' ' }}</td>
+        <td>{% if s.funnel %}<span class="badge badge-red">funnel</span>{% else %}tailnet{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if host.listening_ports %}
+<div class="card" style="margin-top:1rem;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+    <h2 style="margin:0;">Listening ports</h2>
+    <span class="badge">{{ host.listening_ports | length }}</span>
+  </div>
+  <table>
+    <thead><tr><th>Proto</th><th>Address</th><th>Port</th><th>Process</th></tr></thead>
+    <tbody>
+    {% for p in host.listening_ports | sort(attribute='port') %}
+      <tr>
+        <td>{{ p.proto }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ p.address or ' ' }}</td>
+        <td><strong>{{ p.port }}</strong></td>
+        <td>{{ p.process or ' ' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% if history %}
 <div class="card">
   <h2>Change History</h2>
