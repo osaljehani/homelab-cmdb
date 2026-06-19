@@ -25,8 +25,10 @@ from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
 from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
 
-# Same command scripts/docker-export.sh runs; one JSON object per line.
-_DOCKER_PS_CMD = "docker ps --all --no-trunc --format '{{json .}}'"
+# One JSON object per line. We use `--format json` (Docker >= 23.0) rather than the
+# `{{json .}}` Go-template form: Ansible runs the shell module's args through Jinja2,
+# which parses `{{...}}` as an expression and fails before docker ever runs.
+_DOCKER_PS_CMD = "docker ps --all --no-trunc --format json"
 
 # Give a slow homelab room to answer, but don't hang a web request forever.
 _TIMEOUT_SECONDS = 300
@@ -152,7 +154,8 @@ def collect_docker(
 
         upserted = 0
         errors: list[str] = []
-        for f in _tree_files(tree):
+        tree_files = _tree_files(tree)
+        for f in tree_files:
             inv_host = f.name
             try:
                 data = json.loads(f.read_text())
@@ -185,8 +188,15 @@ def collect_docker(
             except Exception as exc:
                 errors.append(f"{inv_host}: {exc}")
 
-    if result.returncode != 0 and result.stderr.strip():
-        errors.append(result.stderr.strip())
+    if result.returncode != 0:
+        # Prefer stderr, but when ansible fails before producing any per-host result
+        # (e.g. bad inventory or an arg-templating error) the message lands on stdout
+        # with an empty stderr   surface it instead of silently reporting zero.
+        detail = result.stderr.strip()
+        if not detail and not tree_files:
+            detail = result.stdout.strip()
+        if detail:
+            errors.append(detail)
 
     target = limit or "all"
     log = ImportLog(
