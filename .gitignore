@@ -12,3 +12,5 @@ CLAUDE.md
 out/
 tests/fixtures/
 docs/superpowers/
+inventory/
+.env

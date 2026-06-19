@@ -5,6 +5,10 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/data
+      - ./inventory:/inventory:ro
+      - ./inventory/ansible.cfg:/app/ansible.cfg:ro
+      - ${SSH_PRIVATE_KEY}:/run/secrets/ssh_key:ro
     environment:
       - CMDB_DB_PATH=/data/cmdb.db
+      - CMDB_ANSIBLE_INVENTORY=/inventory/hosts.yml
     restart: unless-stopped
