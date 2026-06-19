@@ -11,6 +11,8 @@ from cmdb.domain.services.collect import (
     collect_docker,
     collect_facts,
     collect_k8s,
+    collect_ports,
+    collect_tailscale,
 )
 from cmdb.web.deps import templates, get_db_dep
 
@@ -67,17 +69,26 @@ async def collect_run(
             last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
         elif mode == "k8s":
             last_result = collect_k8s(db, inv_tmp, limit_val, ImportSource.COLLECT)
-        else:  # all   facts + docker + k8s; surface the docker log, others merge in
+        elif mode == "tailscale":
+            last_result = collect_tailscale(db, inv_tmp, limit_val, ImportSource.COLLECT)
+        elif mode == "ports":
+            last_result = collect_ports(db, inv_tmp, limit_val, ImportSource.COLLECT)
+        else:  # all   facts + docker + k8s + tailscale + ports; surface the docker log, others merge in
             facts_log = collect_facts(db, inv_tmp, limit_val, ImportSource.COLLECT)
             last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
             k8s_log = collect_k8s(db, inv_tmp, limit_val, ImportSource.COLLECT)
+            ts_log = collect_tailscale(db, inv_tmp, limit_val, ImportSource.COLLECT)
+            ports_log = collect_ports(db, inv_tmp, limit_val, ImportSource.COLLECT)
             last_result.hosts_upserted = facts_log.hosts_upserted
             last_result.hosts_failed = facts_log.hosts_failed
             last_result.k8s_clusters_upserted = k8s_log.k8s_clusters_upserted
             last_result.k8s_nodes_upserted = k8s_log.k8s_nodes_upserted
             last_result.k8s_namespaces_upserted = k8s_log.k8s_namespaces_upserted
+            last_result.tailscale_services_upserted = ts_log.tailscale_services_upserted
+            last_result.listening_ports_upserted = ports_log.listening_ports_upserted
             merged_notes = [
-                n for n in (facts_log.notes, last_result.notes, k8s_log.notes) if n
+                n for n in (facts_log.notes, last_result.notes, k8s_log.notes,
+                            ts_log.notes, ports_log.notes) if n
             ]
             last_result.notes = "\n".join(merged_notes) if merged_notes else None
             last_result_type = "all"
