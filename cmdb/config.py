@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     ansible_inventory: str | None = None
     ansible_user: str | None = None
     ssh_private_key: str | None = None
+    # ansible_ssh_common_args for DB-generated inventories. None -> a sane default is
+    # applied at generation time; an explicit empty string disables it.
+    ansible_ssh_args: str | None = None
 
     @property
     def db_url(self) -> str:
