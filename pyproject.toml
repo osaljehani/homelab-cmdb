@@ -38,6 +38,8 @@ collect = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# *-example.py are illustrative scrubbed copies of the gitignored real tests; not collected.
+addopts = "--ignore-glob=*-example.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["cmdb"]
