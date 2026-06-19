@@ -1,7 +1,12 @@
 import yaml
 from sqlalchemy.orm import Session
 
+from cmdb.config import settings
 from cmdb.domain.models import Host, Tag
+
+# Applied as ansible_ssh_common_args when CMDB_ANSIBLE_SSH_ARGS is unset. Matches the
+# behavior of the hand-maintained inventory: don't choke on first-connect host keys.
+DEFAULT_SSH_COMMON_ARGS = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 
 def _get_hosts(session: Session, tag: str | None = None) -> list[Host]:
@@ -11,9 +16,30 @@ def _get_hosts(session: Session, tag: str | None = None) -> list[Host]:
     return q.order_by(Host.hostname).all()
 
 
-def generate_inventory_yaml(session: Session, tag: str | None = None) -> str:
+def _ssh_vars() -> dict:
+    """Build an Ansible ``all.vars`` block from config; omit anything unset."""
+    vars_block: dict = {}
+    if settings.ansible_user:
+        vars_block["ansible_user"] = settings.ansible_user
+    if settings.ssh_private_key:
+        vars_block["ansible_ssh_private_key_file"] = settings.ssh_private_key
+    # None -> default; explicit "" disables; any other value is used verbatim.
+    ssh_args = DEFAULT_SSH_COMMON_ARGS if settings.ansible_ssh_args is None \
+        else settings.ansible_ssh_args
+    if ssh_args:
+        vars_block["ansible_ssh_common_args"] = ssh_args
+    return vars_block
+
+
+def generate_inventory_yaml(
+    session: Session, tag: str | None = None, include_ssh_vars: bool = False
+) -> str:
     hosts = _get_hosts(session, tag)
     inventory: dict = {"all": {"hosts": {}}}
+    if include_ssh_vars:
+        vars_block = _ssh_vars()
+        if vars_block:
+            inventory["all"]["vars"] = vars_block
     for host in hosts:
         entry: dict | None = {}
         if host.primary_ipv4:
