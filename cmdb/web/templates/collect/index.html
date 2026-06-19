@@ -25,7 +25,7 @@
   </div>
   {% elif last_result_type == 'tailscale' %}
   <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
-    Tailscale collection: {{ last_result.hosts_upserted }} hosts, {{ last_result.tailscale_services_upserted or 0 }} exposed services.
+    Tailscale collection: {{ last_result.hosts_upserted or 0 }} hosts, {{ last_result.tailscale_services_upserted or 0 }} exposed services.
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
   {% elif last_result_type == 'ports' %}
