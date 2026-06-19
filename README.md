@@ -15,6 +15,7 @@ Hosts are upserted on `ansible_machine_id`, so re-importing the same machine upd
 - **Docker inventory**   track containers per host (image, state, ports, compose project). Re-importing a host replaces its container set, so removed containers disappear.
 - **Kubernetes**   model clusters, nodes (by role) and namespaces, imported from `kubectl`.
 - **Change history**   every import snapshots a host's meaningful fields and records a per-host diff timeline (e.g. a kernel upgrade or IP change), skipping volatile values like uptime.
+- **On-demand collection**   pull facts and Docker state live over SSH from the CMDB host (via Ansible), instead of running export scripts on each device. See below.
 - **Generate**   Ansible inventory (YAML/INI) and SSH config from your inventory.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
@@ -104,6 +105,44 @@ entire container set.
 
 ---
 
+## On-demand collection (agentless)
+
+Instead of running export scripts on each device and uploading files, the CMDB host can reach
+out over SSH and collect facts and Docker state itself, then load them through the same import
+pipeline. Collection drives the `ansible` binary, so it needs:
+
+1. The optional `collect` dependency group (bundled in the Docker image):
+
+   ```bash
+   uv sync --all-groups          # or: uv sync --group collect
+   ```
+
+2. An Ansible inventory describing your hosts, plus SSH access from the CMDB host. Point the
+   CMDB at it (SSH user/key can also live in the inventory as `ansible_user` /
+   `ansible_ssh_private_key_file`):
+
+   ```bash
+   export CMDB_ANSIBLE_INVENTORY=./inventory.ini
+   export CMDB_ANSIBLE_USER=ansible            # optional override
+   export CMDB_SSH_PRIVATE_KEY=~/.ssh/id_ed25519 # optional override
+   ```
+
+Then collect from the CLI or the **Collect** page in the web UI (which also adds a "Collect now"
+button on each host's detail page):
+
+```bash
+uv run cmdb collect facts            # gather Ansible facts for all hosts
+uv run cmdb collect docker           # gather docker ps for all hosts
+uv run cmdb collect all              # facts then docker
+uv run cmdb collect facts --limit web01   # a single host or group
+```
+
+Unreachable or failed hosts are reported in the run's notes; Docker collection skips a host on
+failure rather than wiping its existing container set. The `scripts/*-export.sh` file-based path
+still works as a fallback for hosts you can't SSH to from the controller.
+
+---
+
 ## CLI reference
 
 ```bash
@@ -115,6 +154,9 @@ uv run cmdb hosts untag <hostname> <tag> # remove a tag
 uv run cmdb import ansible <path> # import hosts from Ansible facts (file or directory)
 uv run cmdb import docker <path>  # import containers from docker-export.sh JSON
 uv run cmdb import k8s <path>     # import K8s topology from k8s-export.sh JSON
+uv run cmdb collect facts [--inventory PATH] [--limit HOST]   # collect facts over SSH
+uv run cmdb collect docker [--inventory PATH] [--limit HOST]  # collect containers over SSH
+uv run cmdb collect all [--inventory PATH] [--limit HOST]     # facts then docker
 uv run cmdb generate inventory --format yaml|ini  # generate Ansible inventory
 uv run cmdb serve                 # start the web UI
 uv run cmdb db upgrade            # run database migrations
@@ -140,6 +182,9 @@ uv run ruff check cmdb/          # lint
 | `CMDB_DB_PATH` | `./cmdb.db` | Path to the SQLite database file |
 | `CMDB_HOST` | `0.0.0.0` | Bind address for the web server |
 | `CMDB_PORT` | `8080` | Port for the web server |
+| `CMDB_ANSIBLE_INVENTORY` | _(unset)_ | Ansible inventory path used by `cmdb collect` |
+| `CMDB_ANSIBLE_USER` | _(unset)_ | SSH user override for collection (else from inventory) |
+| `CMDB_SSH_PRIVATE_KEY` | _(unset)_ | SSH private key path override for collection |
 
 ---
 

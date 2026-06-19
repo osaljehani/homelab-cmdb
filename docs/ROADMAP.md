@@ -15,6 +15,11 @@ surface   several of these are low effort because the data is already there.
   dashboard Security Posture panel, a Security column on the hosts list, and a posture line in
   `cmdb hosts show`. A host is hardened when AppArmor is enabled or SELinux enforcing/enabled,
   exposed otherwise; FIPS is informational.
+- **On-demand collection (agentless)**   `cmdb/domain/services/collect.py` drives the
+  `ansible` binary from the CMDB host over SSH (`-m setup` for facts, `-m shell` for
+  `docker ps`) against a configured inventory and feeds results into the existing import
+  pipeline. Surfaced as `cmdb collect facts|docker|all`, a `/collect` web page, and a
+  "Collect now" button on host detail. Facts + Docker only for now (see #7 for K8s).
 
 ## High value, low effort (data already in the model)
 
@@ -39,5 +44,5 @@ surface   several of these are low effort because the data is already there.
    hosts needing security updates.
 8. **Authentication**   Optional login before exposing the UI beyond localhost.
 9. **Dependency / topology graph**   Visualize hosts ↔ containers ↔ clusters ↔ services.
-10. **Agentless live collection**   Pull Ansible facts / `docker ps` over SSH on demand instead
-    of uploading files.
+10. **Agentless live collection**   _Delivered for facts + Docker (see above)._ Remaining:
+    on-demand K8s topology collection, scheduled/background runs, and concurrent-run locking.
