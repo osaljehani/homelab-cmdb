@@ -44,21 +44,21 @@ def _parse_serve(serve_json: str) -> list[dict[str, Any]]:
         return []
     try:
         cfg = json.loads(serve_json)
-    except ValueError:
+        if not isinstance(cfg, dict):
+            return []
+        funnel_map = cfg.get("AllowFunnel") or {}
+        services: list[dict[str, Any]] = []
+        for hostport, conf in (cfg.get("Web") or {}).items():
+            port = _port_of(hostport)
+            funnel = bool(funnel_map.get(hostport))
+            for path, handler in ((conf or {}).get("Handlers") or {}).items():
+                handler = handler or {}
+                target = handler.get("Proxy") or handler.get("Path") or path
+                services.append({"proto": "https", "port": port,
+                                 "target": target, "funnel": funnel})
+        return services
+    except (ValueError, AttributeError, TypeError):
         return []
-    if not isinstance(cfg, dict):
-        return []
-    funnel_map = cfg.get("AllowFunnel") or {}
-    services: list[dict[str, Any]] = []
-    for hostport, conf in (cfg.get("Web") or {}).items():
-        port = _port_of(hostport)
-        funnel = bool(funnel_map.get(hostport))
-        for path, handler in ((conf or {}).get("Handlers") or {}).items():
-            handler = handler or {}
-            target = handler.get("Proxy") or handler.get("Path") or path
-            services.append({"proto": "https", "port": port,
-                             "target": target, "funnel": funnel})
-    return services
 
 
 def parse_tailscale_status(status_json: str, serve_json: str) -> dict[str, Any]:
