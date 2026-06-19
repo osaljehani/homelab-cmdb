@@ -19,6 +19,60 @@ def _normalise_role(raw: str) -> K8sNodeRole:
     return mapping.get(raw.lower(), K8sNodeRole.WORKER)
 
 
+# Standard Kubernetes node-role labels (see scripts/k8s-export.sh for the jq twin).
+_CONTROL_PLANE_LABELS = (
+    "node-role.kubernetes.io/control-plane",  # k8s >= 1.20
+    "node-role.kubernetes.io/master",         # legacy
+)
+_ETCD_LABEL = "node-role.kubernetes.io/etcd"
+
+
+def _role_from_labels(labels: dict[str, Any] | None) -> str:
+    """Derive a node role from its labels (mirrors the k8s-export.sh jq logic)."""
+    labels = labels or {}
+    if any(lbl in labels for lbl in _CONTROL_PLANE_LABELS):
+        return "control-plane"
+    if _ETCD_LABEL in labels:
+        return "etcd"
+    return "worker"
+
+
+def parse_kubectl_json(
+    nodes_raw: str,
+    ns_raw: str,
+    cluster_name: str,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Turn raw ``kubectl get nodes/namespaces -o json`` into an import_cluster dict.
+
+    Done in Python rather than with jq on the remote so hosts without jq (e.g. k3s
+    nodes) can still be collected.
+    """
+    nodes_doc = json.loads(nodes_raw)
+    ns_doc = json.loads(ns_raw)
+
+    nodes: list[dict[str, str]] = []
+    for item in nodes_doc.get("items", []):
+        meta = item.get("metadata", {})
+        name = meta.get("name")
+        if not name:
+            continue
+        nodes.append({"hostname": name, "role": _role_from_labels(meta.get("labels"))})
+
+    namespaces = [
+        item.get("metadata", {}).get("name")
+        for item in ns_doc.get("items", [])
+        if item.get("metadata", {}).get("name")
+    ]
+
+    return {
+        "cluster": cluster_name,
+        "description": description,
+        "nodes": nodes,
+        "namespaces": namespaces,
+    }
+
+
 def _normalise_namespaces(raw: list[Any]) -> list[str]:
     result = []
     for item in raw:
