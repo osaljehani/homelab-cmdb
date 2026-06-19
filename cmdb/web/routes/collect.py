@@ -73,7 +73,7 @@ async def collect_run(
             last_result = collect_tailscale(db, inv_tmp, limit_val, ImportSource.COLLECT)
         elif mode == "ports":
             last_result = collect_ports(db, inv_tmp, limit_val, ImportSource.COLLECT)
-        else:  # all   facts + docker + k8s + tailscale + ports; surface the docker log, others merge in
+        else:  # all facts + docker + k8s + tailscale + ports; surface the docker log, others merge in
             facts_log = collect_facts(db, inv_tmp, limit_val, ImportSource.COLLECT)
             last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
             k8s_log = collect_k8s(db, inv_tmp, limit_val, ImportSource.COLLECT)

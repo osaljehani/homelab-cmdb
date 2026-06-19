@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Collect   HomeLabCMDB{% endblock %}
+{% block title %}Collect HomeLabCMDB{% endblock %}
 {% block content %}
 <h1>Collect</h1>
 
@@ -49,7 +49,7 @@
     {% if inventory %}
     Inventory source: <code>{{ inventory }}</code> (<code>CMDB_ANSIBLE_INVENTORY</code>).
     {% else %}
-    Inventory source: <strong>generated from the database</strong>   every known host is targeted.
+    Inventory source: <strong>generated from the database</strong> every known host is targeted.
     {% endif %}
   </p>
   <form action="/collect/run" method="post" enctype="multipart/form-data" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">

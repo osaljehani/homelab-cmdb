@@ -64,7 +64,7 @@ def show_cmd(hostname: str) -> None:
         if posture.hardened:
             posture_str = f"[green]hardened[/green] via {posture.mac}"
         else:
-            posture_str = "[red]EXPOSED[/red]   " + "; ".join(posture.issues)
+            posture_str = "[red]EXPOSED[/red] " + "; ".join(posture.issues)
         fips_str = "on" if host.fips else "off"
         content = (
             f"[bold]Hostname:[/bold]     {host.hostname}\n"

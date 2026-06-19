@@ -19,7 +19,7 @@ def _is(value: str | None, *ok: str) -> bool:
 @dataclass
 class HostPosture:
     hardened: bool  # at least one MAC (AppArmor/SELinux) active
-    mac: str | None  # "AppArmor" | "SELinux" | None   the active MAC, if any
+    mac: str | None  # "AppArmor" | "SELinux" | None the active MAC, if any
     fips: bool | None  # informational, not a flag
     issues: list[str] = field(default_factory=list)
 

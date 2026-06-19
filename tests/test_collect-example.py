@@ -294,7 +294,7 @@ def test_collect_k8s_generic_context_falls_back_to_hostname(host_db: Session, mo
 
 
 def test_collect_k8s_unknown_node_recorded_in_notes(host_db: Session, monkeypatch):
-    # A control-plane enumerates a worker that isn't in the CMDB yet   surfaced, not fatal.
+    # A control-plane enumerates a worker that isn't in the CMDB yet surfaced, not fatal.
     blob = _k8s_blob(
         "local",
         [_node("testhost", "control-plane"), _node("ghost", None)],

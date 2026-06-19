@@ -23,7 +23,7 @@ def test_unchanged_reimport_no_new_snapshot(db: Session, host_facts: dict):
 
 def test_volatile_only_change_no_new_snapshot(db: Session, host_facts: dict):
     import_host(db, host_facts)
-    # uptime changes every import but is volatile   must not create a snapshot.
+    # uptime changes every import but is volatile must not create a snapshot.
     host_facts["ansible_facts"]["ansible_uptime_seconds"] = 999999
     import_host(db, host_facts)
     assert _count(db) == 1

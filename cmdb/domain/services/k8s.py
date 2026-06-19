@@ -35,7 +35,7 @@ def add_node(session: Session, hostname: str, cluster_name: str, role: K8sNodeRo
     )
     if not host:
         raise ValueError(
-            f"Host '{hostname}' not found   "
+            f"Host '{hostname}' not found "
             "ensure the host is imported via Ansible and its hostname or FQDN matches the K8s node name"
         )
     cluster = session.query(K8sCluster).filter_by(name=cluster_name).first()

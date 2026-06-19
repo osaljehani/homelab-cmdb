@@ -61,7 +61,7 @@ def test_import_maps_fields(populated_db, docker_data):
 
 def test_import_replace_removes_stale(populated_db, docker_data):
     import_containers(populated_db, docker_data)
-    # Re-import without redis   it should disappear (replace-on-import).
+    # Re-import without redis it should disappear (replace-on-import).
     docker_data["containers"] = [docker_data["containers"][0]]
     import_containers(populated_db, docker_data)
     names = {c.name for c in populated_db.query(Container).all()}

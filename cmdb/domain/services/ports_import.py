@@ -55,7 +55,7 @@ def import_ports(session: Session, data: dict[str, Any]) -> dict[str, Any]:
         .first()
     )
     if not host:
-        raise ValueError(f"Host '{hostname}' not found   import it via Ansible first")
+        raise ValueError(f"Host '{hostname}' not found import it via Ansible first")
 
     session.query(ListeningPort).filter_by(host_id=host.id).delete()
     upserted = 0

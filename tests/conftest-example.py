@@ -71,7 +71,7 @@ def host_facts() -> dict:
 
 @pytest.fixture
 def host_facts_alt() -> dict:
-    """Same machine_id as host_facts, different hostname   for upsert tests."""
+    """Same machine_id as host_facts, different hostname for upsert tests."""
     import copy
     data = copy.deepcopy(_SAMPLE_FACTS)
     data["ansible_facts"]["ansible_hostname"] = "testhost-renamed"

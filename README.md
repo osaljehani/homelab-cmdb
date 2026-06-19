@@ -1,8 +1,8 @@
 # HomeLabCMDB
 
 A homelab inventory and CMDB (Configuration Management Database) tool. Feed it Ansible facts and
-browse your infrastructure   hosts, Docker containers, Kubernetes topology, Tailscale state, and
-open ports   through a web UI or the CLI.
+browse your infrastructure hosts, Docker containers, Kubernetes topology, Tailscale state, and
+open ports through a web UI or the CLI.
 
 - **Backend:** FastAPI + SQLite (via SQLAlchemy / Alembic migrations)
 - **Frontend:** HTMX + Jinja2 templates, graphite terminal-style dark theme
@@ -16,24 +16,24 @@ creating duplicates.
 
 ## Features
 
-- **Hosts**   identity, OS, hardware, network, storage, security (AppArmor / SELinux / FIPS) and
+- **Hosts** identity, OS, hardware, network, storage, security (AppArmor / SELinux / FIPS) and
   virtualization, imported from Ansible facts. Tag and search hosts.
-- **Security posture**   each host is judged hardened (AppArmor enabled or SELinux
+- **Security posture** each host is judged hardened (AppArmor enabled or SELinux
   enforcing/enabled) or exposed, surfaced as a dashboard panel, a Security column on the hosts
   list, and a line in `cmdb hosts show`. FIPS is reported as informational.
-- **Docker inventory**   track containers per host (image, state, ports, compose project).
+- **Docker inventory** track containers per host (image, state, ports, compose project).
   Re-importing a host replaces its container set, so removed containers disappear.
-- **Kubernetes**   model clusters, nodes (by role) and namespaces, imported from `kubectl`.
-- **Tailscale**   per-host tailnet identity (Tailscale IP, MagicDNS name, tags, exit-node,
+- **Kubernetes** model clusters, nodes (by role) and namespaces, imported from `kubectl`.
+- **Tailscale** per-host tailnet identity (Tailscale IP, MagicDNS name, tags, exit-node,
   online state) plus any serve/funnel-exposed services.
-- **Listening ports**   open TCP/UDP listeners per host (proto, address, port, owning process),
+- **Listening ports** open TCP/UDP listeners per host (proto, address, port, owning process),
   collected from `ss`.
-- **Change history**   every import snapshots a host's meaningful fields and records a per-host
+- **Change history** every import snapshots a host's meaningful fields and records a per-host
   diff timeline (e.g. a kernel upgrade or IP change), skipping volatile values like uptime.
-- **On-demand collection**   pull facts, Docker, Kubernetes, Tailscale and port state live over
+- **On-demand collection** pull facts, Docker, Kubernetes, Tailscale and port state live over
   SSH from the CMDB host (via Ansible), instead of running export scripts on each device. The
   Ansible inventory is generated from the database by default. See below.
-- **Generate**   Ansible inventory (YAML/INI) and SSH config from your inventory.
+- **Generate** Ansible inventory (YAML/INI) and SSH config from your inventory.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
@@ -112,7 +112,7 @@ uv run cmdb import ansible ./out/
 
 For hosts you can't (or don't want to) reach over SSH from the controller, the export helpers in
 `scripts/` generate import JSON you can upload or import by file. The host must already exist in
-the CMDB (imported via Ansible)   records are matched to it by hostname/FQDN.
+the CMDB (imported via Ansible) records are matched to it by hostname/FQDN.
 
 ```bash
 # Docker: run on the Docker host (requires docker + jq)
@@ -126,7 +126,7 @@ uv run cmdb import k8s ./my-cluster.json
 
 The Docker JSON format is `{"host": "<hostname>", "containers": [ ... ]}`; raw
 `docker ps --format json` fields are also accepted. Re-importing a host replaces its entire
-container set. K8s import is additive   re-runs never duplicate nodes or namespaces.
+container set. K8s import is additive re-runs never duplicate nodes or namespaces.
 
 ---
 
@@ -143,7 +143,7 @@ drives the `ansible` binary, so it needs:
    ```
 
 2. SSH access from the CMDB host to your machines. **The Ansible inventory is generated from the
-   database by default**   every host already in the CMDB is targeted automatically, with SSH
+   database by default** every host already in the CMDB is targeted automatically, with SSH
    credentials injected from config:
 
    ```bash
@@ -174,7 +174,7 @@ Notes on behaviour:
 - **`collect all`** runs facts first (so host-keyed collectors can resolve hosts), then Docker,
   Kubernetes, Tailscale and ports.
 - **Host-centric collectors skip cleanly.** A host without `docker` (e.g. a k3s-only node), a
-  non-Kubernetes host, or a host without `tailscale` is skipped silently rather than erroring  
+  non-Kubernetes host, or a host without `tailscale` is skipped silently rather than erroring
   and a transient failure never wipes a host's existing data. Kubernetes collection lets a
   control-plane node enumerate its whole cluster, so workers are discovered without being reached
   directly.
@@ -231,7 +231,7 @@ just test                        # run the full suite via the justfile
 | `CMDB_DB_PATH` | `./cmdb.db` | Path to the SQLite database file |
 | `CMDB_HOST` | `0.0.0.0` | Bind address for the web server |
 | `CMDB_PORT` | `8080` | Port for the web server |
-| `CMDB_SECRET_KEY` | `change-me-in-production` | Session secret   set to a random value in production |
+| `CMDB_SECRET_KEY` | `change-me-in-production` | Session secret set to a random value in production |
 | `CMDB_ANSIBLE_INVENTORY` | _(unset)_ | Fixed Ansible inventory path; overrides DB generation when set |
 | `CMDB_ANSIBLE_USER` | _(unset)_ | SSH user injected into the generated inventory |
 | `CMDB_SSH_PRIVATE_KEY` | _(unset)_ | SSH private key path injected into the generated inventory |
