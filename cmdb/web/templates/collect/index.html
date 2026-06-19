@@ -28,12 +28,16 @@
 
 <div class="card">
   <h2>On-demand collection</h2>
-  {% if inventory %}
   <p class="text-muted" style="font-size:.9rem;">
-    Reaches out over SSH (via <code>ansible</code>) using inventory <code>{{ inventory }}</code> and imports the results.
+    Reaches out over SSH (via <code>ansible</code>) and imports the results.
     Hosts must already exist (collect facts first) for Docker containers to match.
+    {% if inventory %}
+    Inventory source: <code>{{ inventory }}</code> (<code>CMDB_ANSIBLE_INVENTORY</code>).
+    {% else %}
+    Inventory source: <strong>generated from the database</strong>   every known host is targeted.
+    {% endif %}
   </p>
-  <form action="/collect/run" method="post" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
+  <form action="/collect/run" method="post" enctype="multipart/form-data" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
     <select name="mode" style="width:auto;">
       <option value="all">Facts + Docker</option>
       <option value="facts">Facts only</option>
@@ -41,13 +45,15 @@
     </select>
     <input type="text" name="limit" placeholder="host or group (default: all)" style="max-width:280px;">
     <button type="submit" class="btn">Collect now</button>
+    <details style="flex-basis:100%;margin-top:.25rem;">
+      <summary class="text-muted" style="cursor:pointer;font-size:.9rem;">Use a custom inventory (optional)</summary>
+      <p class="text-muted" style="font-size:.85rem;margin:.5rem 0 .25rem;">
+        Upload an Ansible inventory to use for this run only. Leave empty for
+        <em>Auto (generated from database)</em>.
+      </p>
+      <input type="file" name="inventory" accept=".yml,.yaml,.ini">
+    </details>
   </form>
-  {% else %}
-  <p class="text-muted" style="font-size:.9rem;">
-    No inventory configured. Set <code>CMDB_ANSIBLE_INVENTORY</code> to an Ansible inventory path
-    (and optionally <code>CMDB_ANSIBLE_USER</code> / <code>CMDB_SSH_PRIVATE_KEY</code>), then restart.
-  </p>
-  {% endif %}
 </div>
 
 <div class="card">
