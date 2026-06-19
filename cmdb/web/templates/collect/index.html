@@ -23,9 +23,19 @@
     K8s collection: {{ last_result.k8s_clusters_upserted }} clusters, {{ last_result.k8s_nodes_upserted }} nodes, {{ last_result.k8s_namespaces_upserted }} namespaces.
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
+  {% elif last_result_type == 'tailscale' %}
+  <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
+    Tailscale collection: {{ last_result.hosts_upserted }} hosts, {{ last_result.tailscale_services_upserted or 0 }} exposed services.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
+  {% elif last_result_type == 'ports' %}
+  <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
+    Ports collection: {{ last_result.listening_ports_upserted or 0 }} listening ports.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
   {% else %}
   <div class="flash-{{ 'success' if last_result.hosts_failed == 0 and not last_result.notes else 'error' }}">
-    Collection: {{ last_result.hosts_upserted }} hosts ({{ last_result.hosts_failed }} failed), {{ last_result.containers_upserted }} containers, {{ last_result.k8s_clusters_upserted or 0 }} clusters ({{ last_result.k8s_nodes_upserted or 0 }} nodes).
+    Collection: {{ last_result.hosts_upserted }} hosts ({{ last_result.hosts_failed }} failed), {{ last_result.containers_upserted }} containers, {{ last_result.k8s_clusters_upserted or 0 }} clusters ({{ last_result.k8s_nodes_upserted or 0 }} nodes), {{ last_result.tailscale_services_upserted or 0 }} ts-services, {{ last_result.listening_ports_upserted or 0 }} ports.
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
   {% endif %}
@@ -44,10 +54,12 @@
   </p>
   <form action="/collect/run" method="post" enctype="multipart/form-data" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
     <select name="mode" style="width:auto;">
-      <option value="all">Facts + Docker + K8s</option>
+      <option value="all">Facts + Docker + K8s + Tailscale + Ports</option>
       <option value="facts">Facts only</option>
       <option value="docker">Docker only</option>
       <option value="k8s">Kubernetes only</option>
+      <option value="tailscale">Tailscale only</option>
+      <option value="ports">Listening ports only</option>
     </select>
     <input type="text" name="limit" placeholder="host or group (default: all)" style="max-width:280px;">
     <button type="submit" class="btn">Collect now</button>
