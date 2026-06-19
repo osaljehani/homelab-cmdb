@@ -18,9 +18,14 @@
     Facts collection: {{ last_result.hosts_upserted }} upserted, {{ last_result.hosts_failed }} failed.
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
+  {% elif last_result_type == 'k8s' %}
+  <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
+    K8s collection: {{ last_result.k8s_clusters_upserted }} clusters, {{ last_result.k8s_nodes_upserted }} nodes, {{ last_result.k8s_namespaces_upserted }} namespaces.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
   {% else %}
   <div class="flash-{{ 'success' if last_result.hosts_failed == 0 and not last_result.notes else 'error' }}">
-    Collection: {{ last_result.hosts_upserted }} hosts ({{ last_result.hosts_failed }} failed), {{ last_result.containers_upserted }} containers.
+    Collection: {{ last_result.hosts_upserted }} hosts ({{ last_result.hosts_failed }} failed), {{ last_result.containers_upserted }} containers, {{ last_result.k8s_clusters_upserted or 0 }} clusters ({{ last_result.k8s_nodes_upserted or 0 }} nodes).
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
   {% endif %}
@@ -39,9 +44,10 @@
   </p>
   <form action="/collect/run" method="post" enctype="multipart/form-data" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
     <select name="mode" style="width:auto;">
-      <option value="all">Facts + Docker</option>
+      <option value="all">Facts + Docker + K8s</option>
       <option value="facts">Facts only</option>
       <option value="docker">Docker only</option>
+      <option value="k8s">Kubernetes only</option>
     </select>
     <input type="text" name="limit" placeholder="host or group (default: all)" style="max-width:280px;">
     <button type="submit" class="btn">Collect now</button>
@@ -61,7 +67,7 @@
   <table>
     <thead>
       <tr>
-        <th>Date</th><th>Source</th><th>Detail</th><th>Hosts</th><th>Containers</th><th>Errors</th>
+        <th>Date</th><th>Source</th><th>Detail</th><th>Hosts</th><th>Containers</th><th>K8s</th><th>Errors</th>
       </tr>
     </thead>
     <tbody>
@@ -73,6 +79,11 @@
       <td>{{ log.hosts_upserted if log.hosts_upserted else ' ' }}</td>
       <td>{{ log.containers_upserted if log.containers_upserted is not none else ' ' }}</td>
       <td>
+        {% if log.k8s_clusters_upserted %}
+          {{ log.k8s_clusters_upserted }}c / {{ log.k8s_nodes_upserted or 0 }}n / {{ log.k8s_namespaces_upserted or 0 }}ns
+        {% else %} {% endif %}
+      </td>
+      <td>
         {% if log.hosts_failed %}
           <span class="badge badge-red">{{ log.hosts_failed }}</span>
         {% elif log.notes %}
@@ -81,7 +92,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="text-muted text-center" style="padding:2rem">No runs yet.</td></tr>
+    <tr><td colspan="7" class="text-muted text-center" style="padding:2rem">No runs yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

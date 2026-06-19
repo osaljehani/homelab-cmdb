@@ -10,6 +10,7 @@ from cmdb.domain.services.collect import (
     CollectError,
     collect_docker,
     collect_facts,
+    collect_k8s,
 )
 from cmdb.web.deps import templates, get_db_dep
 
@@ -64,15 +65,21 @@ async def collect_run(
             last_result = collect_facts(db, inv_tmp, limit_val, ImportSource.COLLECT)
         elif mode == "docker":
             last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
-        else:  # all   facts then docker; surface the docker log, facts errors merge in
+        elif mode == "k8s":
+            last_result = collect_k8s(db, inv_tmp, limit_val, ImportSource.COLLECT)
+        else:  # all   facts + docker + k8s; surface the docker log, others merge in
             facts_log = collect_facts(db, inv_tmp, limit_val, ImportSource.COLLECT)
             last_result = collect_docker(db, inv_tmp, limit_val, ImportSource.COLLECT)
+            k8s_log = collect_k8s(db, inv_tmp, limit_val, ImportSource.COLLECT)
             last_result.hosts_upserted = facts_log.hosts_upserted
             last_result.hosts_failed = facts_log.hosts_failed
-            if facts_log.notes:
-                last_result.notes = "\n".join(
-                    n for n in (facts_log.notes, last_result.notes) if n
-                )
+            last_result.k8s_clusters_upserted = k8s_log.k8s_clusters_upserted
+            last_result.k8s_nodes_upserted = k8s_log.k8s_nodes_upserted
+            last_result.k8s_namespaces_upserted = k8s_log.k8s_namespaces_upserted
+            merged_notes = [
+                n for n in (facts_log.notes, last_result.notes, k8s_log.notes) if n
+            ]
+            last_result.notes = "\n".join(merged_notes) if merged_notes else None
             last_result_type = "all"
     except CollectError as exc:
         error = str(exc)
