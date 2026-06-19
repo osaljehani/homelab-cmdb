@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "homelab-cmdb"
 version = "0.1.0"
-description = "Homelab CMDB   Ansible-fed, SQLite-backed inventory"
+description = "Homelab CMDB Ansible-fed, SQLite-backed inventory"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

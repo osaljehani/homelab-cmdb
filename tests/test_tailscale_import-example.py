@@ -52,7 +52,7 @@ def test_parse_tolerates_empty_and_malformed():
 
 
 def test_parse_serve_tolerates_malformed_nested_shape():
-    # Syntactically valid JSON, but Web is not a dict   must not raise.
+    # Syntactically valid JSON, but Web is not a dict must not raise.
     out = parse_tailscale_status(STATUS, '{"Web": "unexpected"}')
     assert out["services"] == []
 

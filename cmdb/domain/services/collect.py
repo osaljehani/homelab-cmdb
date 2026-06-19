@@ -3,7 +3,7 @@
 Instead of running export scripts on each device and uploading the output, this
 module drives the `ansible` binary from the CMDB host (the controller) over SSH and
 feeds the results straight into the existing import pipeline. No new parsing lives
-here   facts go through ``ansible.import_from_path`` and containers through
+here facts go through ``ansible.import_from_path`` and containers through
 ``docker_import.import_containers``.
 
 Requires the ``ansible`` binary on PATH (install the ``collect`` dependency group:
@@ -34,7 +34,7 @@ from cmdb.domain.services.tailscale_import import import_tailscale, parse_tailsc
 #
 # Guard on `command -v docker` first: a host without docker (e.g. a pure k3s node)
 # would otherwise fail with rc 127 and surface a misleading generic error. Instead it
-# prints the `status=no-docker` sentinel and exits 0, and is skipped quietly   mirroring
+# prints the `status=no-docker` sentinel and exits 0, and is skipped quietly mirroring
 # how the k8s probe emits `status=no-k8s` for non-control-plane hosts.
 _DOCKER_PS_CMD = (
     "if ! command -v docker >/dev/null 2>&1; then echo status=no-docker; exit 0; fi\n"
@@ -43,7 +43,7 @@ _DOCKER_PS_CMD = (
 _NO_DOCKER_SENTINEL = "status=no-docker"
 
 # Probe a host for a usable control-plane kubectl and, if found, emit a
-# marker-delimited blob of raw `kubectl -o json` (transformed in Python   the remote
+# marker-delimited blob of raw `kubectl -o json` (transformed in Python the remote
 # may lack jq). A host with no control-plane kubectl prints `status=no-k8s` and is
 # skipped. No `{{ }}`: Ansible's shell module runs args through Jinja2 (see _DOCKER_PS_CMD).
 _K8S_PROBE_CMD = """\
@@ -225,7 +225,7 @@ def _parse_ts_blob(stdout: str) -> dict[str, str] | None:
     """Split the tailscale probe's stdout into raw status/serve JSON.
 
     Returns ``{status_raw, serve_raw}`` for a host running tailscale, or ``None`` when
-    the markers are absent (no tailscale installed   skip quietly).
+    the markers are absent (no tailscale installed skip quietly).
     """
     if "__STATUS__" not in stdout or "__SERVE__" not in stdout:
         return None
@@ -244,7 +244,7 @@ def collect_k8s(
 
     Each control-plane host enumerates its whole cluster in one pass, so workers are
     discovered without being reached directly. Hosts that aren't control-planes are
-    skipped silently (``import_cluster`` is additive   skipping never wipes data).
+    skipped silently (``import_cluster`` is additive skipping never wipes data).
     """
     with (
         inventory_for(session, inventory) as inv,
@@ -271,7 +271,7 @@ def collect_k8s(
 
             blob = _parse_k8s_blob(data.get("stdout") or "")
             if blob is None:
-                # Not a control-plane (no usable kubectl)   expected for workers and
+                # Not a control-plane (no usable kubectl) expected for workers and
                 # non-k8s hosts; skip quietly rather than logging noise.
                 continue
 
@@ -340,7 +340,7 @@ def collect_docker(
                 errors.append(f"{inv_host}: could not read result: {exc}")
                 continue
 
-            # Skip unreachable/failed hosts   importing an empty set would wipe the
+            # Skip unreachable/failed hosts importing an empty set would wipe the
             # host's existing containers (import_containers is replace-on-import).
             if data.get("unreachable") or data.get("failed") or data.get("rc", 0) != 0:
                 reason = data.get("msg") or data.get("stderr") or "collection failed"
@@ -348,7 +348,7 @@ def collect_docker(
                 continue
 
             if (data.get("stdout") or "").strip() == _NO_DOCKER_SENTINEL:
-                # Host has no docker installed   expected (e.g. a k3s node); skip
+                # Host has no docker installed expected (e.g. a k3s node); skip
                 # quietly. Crucially, don't fall through to import_containers with an
                 # empty set, which would wipe any previously-collected containers.
                 continue
@@ -374,7 +374,7 @@ def collect_docker(
     if result.returncode != 0:
         # Prefer stderr, but when ansible fails before producing any per-host result
         # (e.g. bad inventory or an arg-templating error) the message lands on stdout
-        # with an empty stderr   surface it instead of silently reporting zero.
+        # with an empty stderr surface it instead of silently reporting zero.
         detail = _strip_ansible_warnings(result.stderr)
         if not detail and not tree_files:
             detail = _strip_ansible_warnings(result.stdout)
@@ -485,7 +485,7 @@ def collect_tailscale(
 
             blob = _parse_ts_blob(data.get("stdout") or "")
             if blob is None:
-                # No tailscale on this host   expected; skip quietly.
+                # No tailscale on this host expected; skip quietly.
                 continue
 
             try:

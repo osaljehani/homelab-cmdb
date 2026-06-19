@@ -59,7 +59,7 @@ def import_containers(session: Session, data: dict[str, Any]) -> dict[str, Any]:
         .first()
     )
     if not host:
-        raise ValueError(f"Host '{hostname}' not found   import it via Ansible first")
+        raise ValueError(f"Host '{hostname}' not found import it via Ansible first")
 
     # Replace: drop existing containers for this host, then re-insert.
     session.query(Container).filter_by(host_id=host.id).delete()

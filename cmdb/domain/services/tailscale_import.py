@@ -80,7 +80,7 @@ def import_tailscale(session: Session, data: dict[str, Any]) -> dict[str, Any]:
         .first()
     )
     if not host:
-        raise ValueError(f"Host '{hostname}' not found   import it via Ansible first")
+        raise ValueError(f"Host '{hostname}' not found import it via Ansible first")
 
     self_node = data.get("self") or {}
     host.tailscale_ipv4 = self_node.get("ipv4")

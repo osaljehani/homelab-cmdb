@@ -13,5 +13,5 @@ templates.env.globals["host_posture"] = host_posture
 
 
 def get_db_dep() -> Generator[Session, None, None]:
-    """FastAPI dependency   yields a DB session."""
+    """FastAPI dependency yields a DB session."""
     yield from get_db()
