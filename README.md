@@ -34,6 +34,8 @@ creating duplicates.
   SSH from the CMDB host (via Ansible), instead of running export scripts on each device. The
   Ansible inventory is generated from the database by default. See below.
 - **Generate** Ansible inventory (YAML/INI) and SSH config from your inventory.
+- **MCP server** query and manage the CMDB from LLM clients (Claude Code, Claude Desktop)
+  via a Model Context Protocol server over stdio. See below.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
@@ -207,8 +209,36 @@ uv run cmdb generate inventory --format yaml|ini   # generate Ansible inventory
 uv run cmdb generate ssh-config                    # generate SSH config
 
 uv run cmdb serve                    # start the web UI
+uv run cmdb mcp                      # start the MCP server (stdio) for LLM clients
 uv run cmdb db upgrade               # run database migrations
 ```
+
+---
+
+## MCP server
+
+`cmdb mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server over
+stdio, exposing the CMDB to LLM clients (Claude Code, Claude Desktop, etc.) as callable
+tools. It is a thin shell over the same domain layer as the CLI and web UI, so it queries
+and mutates the same database. It runs pending migrations on startup, and is spawned on
+demand by the client (no long-running process, no open ports).
+
+Install the optional dependency group, then register it with Claude Code:
+
+```bash
+uv sync --group mcp
+
+claude mcp add homelabcmdb \
+  --env CMDB_DB_PATH=/path/to/HomeLabCMDB/cmdb.db \
+  -- uv run --project /path/to/HomeLabCMDB cmdb mcp
+```
+
+Set `CMDB_DB_PATH` to an absolute path so the server finds the database regardless of the
+client's working directory. Exposed tools include: `list_hosts`, `get_host`, `add_tag` /
+`remove_tag`, `delete_host`, `host_posture`, `posture_summary`, `host_history`,
+`list_clusters` / `list_nodes`, `add_cluster` / `delete_cluster` / `add_node` /
+`remove_node`, `generate_inventory_yaml` / `generate_inventory_ini` / `generate_ssh_config`,
+and `import_ansible`. (Agentless SSH collection is intentionally not exposed.)
 
 ---
 
@@ -245,6 +275,7 @@ just test                        # run the full suite via the justfile
 cmdb/
   cli/          CLI entry points (thin shell over domain)
   web/          FastAPI routes and Jinja2 templates (thin shell over domain)
+  mcp/          MCP server exposing domain services as tools (thin shell over domain)
   domain/
     models.py   SQLAlchemy models (Host, Tag, Container, K8s*, TailscaleService, ListeningPort, …)
     services/   All business logic lives here (ansible, docker_import, k8s_import,
