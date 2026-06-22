@@ -35,6 +35,10 @@ dev = [
 collect = [
     "ansible-core>=2.16",
 ]
+# Optional: enables `cmdb mcp` (Model Context Protocol server over stdio).
+mcp = [
+    "mcp>=1.12",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
