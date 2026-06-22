@@ -23,5 +23,13 @@ def serve(
     uvicorn.run(fastapi_app, host=host, port=port)
 
 
+@app.command("mcp")
+def mcp() -> None:
+    """Run the MCP server (stdio transport) for LLM clients like Claude Code."""
+    from cmdb.mcp.server import serve
+
+    serve()
+
+
 if __name__ == "__main__":
     app()
