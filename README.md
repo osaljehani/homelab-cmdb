@@ -229,12 +229,15 @@ Install the optional dependency group, then register it with Claude Code:
 uv sync --group mcp
 
 claude mcp add homelabcmdb \
-  --env CMDB_DB_PATH=/path/to/HomeLabCMDB/cmdb.db \
+  --env CMDB_DB_PATH=/path/to/HomeLabCMDB/data/cmdb.db \
   -- uv run --project /path/to/HomeLabCMDB cmdb mcp
 ```
 
 Set `CMDB_DB_PATH` to an absolute path so the server finds the database regardless of the
-client's working directory. Exposed tools include: `list_hosts`, `get_host`, `add_tag` /
+client's working directory. Point it at the **same** database the web container uses (the
+`./data/cmdb.db` Docker volume by default) so both write a single source of truth with no
+drift. The file must be writable by the user running the server (the parent directory too,
+for SQLite's journal). Exposed tools include: `list_hosts`, `get_host`, `add_tag` /
 `remove_tag`, `delete_host`, `host_posture`, `posture_summary`, `host_history`,
 `list_clusters` / `list_nodes`, `add_cluster` / `delete_cluster` / `add_node` /
 `remove_node`, `generate_inventory_yaml` / `generate_inventory_ini` / `generate_ssh_config`,
