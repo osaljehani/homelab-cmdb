@@ -78,7 +78,7 @@ def test_host_tag_remove(populated_client, db):
 def test_dashboard_shows_security_panel(populated_client):
     r = populated_client.get("/")
     assert r.status_code == 200
-    assert "Security Posture" in r.text
+    assert "Security posture" in r.text
 
 
 def test_hosts_list_has_security_column(populated_client):

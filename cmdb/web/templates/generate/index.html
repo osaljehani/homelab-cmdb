@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Generate HomeLabCMDB{% endblock %}
 {% block content %}
-<h1>Generate Configs</h1>
+<h1>Generate configs</h1>
 
 <div class="card" style="margin-bottom:1rem;padding:1rem 1.5rem;">
   <form style="display:flex;gap:.75rem;align-items:center;">
@@ -29,7 +29,7 @@
   </div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
-      <h2 style="margin:0;">SSH Config</h2>
+      <h2 style="margin:0;">SSH config</h2>
       <a href="/generate/download/ssh-config{% if tag %}?tag={{ tag }}{% endif %}" class="btn btn-sm">Download</a>
     </div>
     <pre>{{ ssh_config }}</pre>
