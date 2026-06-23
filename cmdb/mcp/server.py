@@ -265,13 +265,9 @@ def serve() -> None:
     server works against a fresh DB. Alembic logs to stderr, keeping stdout
     (the MCP JSON-RPC channel) clean.
     """
-    from pathlib import Path
+    from cmdb.db import run_migrations
 
-    from alembic import command
-    from alembic.config import Config
-
-    cfg = Config(str(Path(__file__).parent.parent.parent / "alembic.ini"))
-    command.upgrade(cfg, "head")
+    run_migrations()
     mcp.run()  # stdio transport by default
 
 

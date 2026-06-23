@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -17,11 +16,9 @@ from cmdb.web.routes import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from alembic.config import Config
-    from alembic import command
+    from cmdb.db import run_migrations
 
-    cfg = Config(str(Path(__file__).parent.parent.parent / "alembic.ini"))
-    command.upgrade(cfg, "head")
+    run_migrations()
     yield
 
 
