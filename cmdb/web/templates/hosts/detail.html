@@ -152,7 +152,7 @@
 
 {% if history %}
 <div class="card">
-  <h2>Change History</h2>
+  <h2>Change history</h2>
   <ul class="timeline">
     {% for entry in history %}
     <li class="timeline-item">
@@ -176,8 +176,8 @@
 {% endif %}
 
 <details style="margin-top:1rem;">
-  <summary style="cursor:pointer;font-weight:600;padding:.75rem;background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);">
-    Raw Ansible Facts
+  <summary style="cursor:pointer;font-weight:600;padding:.75rem 1rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);color:var(--text-main);">
+    Raw Ansible facts
   </summary>
   <div class="card" style="margin-top:.5rem;">
     <pre>{{ raw_pretty }}</pre>
