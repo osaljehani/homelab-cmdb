@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Kubernetes HomeLabCMDB{% endblock %}
 {% block content %}
-<h1>Kubernetes Topology</h1>
+<h1>Kubernetes topology</h1>
 
 <div class="grid-2-1">
   <div>
@@ -35,12 +35,12 @@
       </table>
       {% if cluster.namespaces %}
       <div style="margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem;">
-        <div style="font-size:.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem;">
-          Namespaces <span style="color:var(--accent);">{{ cluster.namespaces | length }}</span>
+        <div style="font-family:var(--font-mono);font-size:.8rem;color:var(--accent);letter-spacing:.02em;margin-bottom:.6rem;">
+          Namespaces <span style="color:var(--text-muted);">{{ cluster.namespaces | length }}</span>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:.35rem;">
           {% for ns in cluster.namespaces | sort(attribute='name') %}
-          <span class="badge" style="font-size:.7rem;font-family:'JetBrains Mono',monospace;">{{ ns.name }}</span>
+          <span class="badge" style="font-size:.7rem;">{{ ns.name }}</span>
           {% endfor %}
         </div>
       </div>
@@ -53,7 +53,7 @@
         <select name="role">
           {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
         </select>
-        <button type="submit" class="btn btn-sm">Add Node</button>
+        <button type="submit" class="btn btn-sm">Add node</button>
       </form>
     </div>
     {% else %}
@@ -62,7 +62,7 @@
   </div>
 
   <div class="card">
-    <h2>New Cluster</h2>
+    <h2>New cluster</h2>
     <form method="post" action="/k8s/clusters" style="display:flex;flex-direction:column;gap:.75rem;">
       <input type="text" name="name" placeholder="Cluster name" required>
       <input type="text" name="description" placeholder="Description (optional)">
