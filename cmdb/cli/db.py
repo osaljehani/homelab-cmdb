@@ -1,5 +1,4 @@
 import typer
-from pathlib import Path
 
 app = typer.Typer(help="Database management")
 
@@ -7,9 +6,7 @@ app = typer.Typer(help="Database management")
 @app.command("upgrade")
 def upgrade() -> None:
     """Run pending Alembic migrations."""
-    from alembic.config import Config
-    from alembic import command
+    from cmdb.db import run_migrations
 
-    cfg = Config(str(Path(__file__).parent.parent.parent / "alembic.ini"))
-    command.upgrade(cfg, "head")
+    run_migrations()
     typer.echo("Migrations applied.")
