@@ -1,4 +1,11 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Repo root (cmdb/config.py -> repo). Used to anchor relative paths so startup
+# is independent of the current working directory (e.g. the MCP server launched
+# via `uv run --project <repo> cmdb mcp` from an arbitrary cwd).
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -20,7 +27,13 @@ class Settings(BaseSettings):
 
     @property
     def db_url(self) -> str:
-        return f"sqlite:///{self.db_path}"
+        # Resolve a relative db_path against the repo root, not the cwd, so the
+        # DB lands in the same place regardless of where the process is launched.
+        # An absolute CMDB_DB_PATH is honored unchanged.
+        path = Path(self.db_path)
+        if not path.is_absolute():
+            path = PROJECT_ROOT / path
+        return f"sqlite:///{path}"
 
 
 settings = Settings()
