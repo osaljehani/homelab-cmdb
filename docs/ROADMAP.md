@@ -20,6 +20,9 @@ surface several of these are low effort because the data is already there.
   `docker ps`) against a configured inventory and feeds results into the existing import
   pipeline. Surfaced as `cmdb collect facts|docker|all`, a `/collect` web page, and a
   "Collect now" button on host detail. Facts + Docker only for now (see #7 for K8s).
+- **Container image CVE scanning** Delivered image-side: trivy scans imported as a source,
+  stored with history, displayed in web/CLI/MCP. (Host-side scan-images.sh + timer live in
+  host-config.)
 
 ## High value, low effort (data already in the model)
 

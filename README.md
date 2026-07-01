@@ -8,7 +8,7 @@ open ports through a web UI or the CLI.
 - **Frontend:** HTMX + Jinja2 templates, graphite terminal-style dark theme
 - **CLI:** Typer
 - **Import sources:** Ansible `setup` facts, Docker (`docker ps`), Kubernetes (`kubectl`),
-  Tailscale (`tailscale status`), listening ports (`ss`)
+  Tailscale (`tailscale status`), listening ports (`ss`), **trivy image scans**
 - **Collection:** file-based import **or** agentless on-demand collection over SSH
 
 Hosts are upserted on `ansible_machine_id`, so re-importing the same machine updates it without
@@ -28,6 +28,8 @@ creating duplicates.
   online state) plus any serve/funnel-exposed services.
 - **Listening ports** open TCP/UDP listeners per host (proto, address, port, owning process),
   collected from `ss`.
+- **Image vulnerabilities** ingest trivy image scans (per-image history, severity counts,
+  browsable findings); flag expected-noisy images (e.g. a pentest arsenal) out of the rollup.
 - **Change history** every import snapshots a host's meaningful fields and records a per-host
   diff timeline (e.g. a kernel upgrade or IP change), skipping volatile values like uptime.
 - **On-demand collection** pull facts, Docker, Kubernetes, Tailscale and port state live over
