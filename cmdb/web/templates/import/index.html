@@ -14,6 +14,11 @@
     Docker import: {{ last_result.containers_upserted }} containers.
     {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
   </div>
+  {% elif last_result_type == 'trivy' %}
+  <div class="flash-{{ 'success' if not last_result.notes else 'error' }}">
+    Trivy import: {{ last_result.images_scanned }} images, {{ last_result.vulnerabilities_upserted }} vulnerabilities.
+    {% if last_result.notes %}<pre style="margin:.5rem 0 0;font-size:.8rem;">{{ last_result.notes }}</pre>{% endif %}
+  </div>
   {% else %}
   <div class="flash-{{ 'success' if last_result.hosts_failed == 0 else 'error' }}">
     Ansible import: {{ last_result.hosts_upserted }} upserted, {{ last_result.hosts_failed }} failed.
@@ -47,6 +52,15 @@
     <form action="/import/upload/k8s" method="post" enctype="multipart/form-data">
       <input type="file" name="files" multiple accept=".json" style="margin-bottom:.75rem;display:block;">
       <button type="submit" class="btn">Import K8s</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Upload Trivy scan</h2>
+    <p class="text-muted" style="font-size:.9rem;">Upload JSON from <code>host-config/scan-images.sh</code> (trivy image scans)</p>
+    <form action="/import/upload/trivy" method="post" enctype="multipart/form-data">
+      <input type="file" name="files" multiple accept=".json" style="margin-bottom:.75rem;display:block;">
+      <button type="submit" class="btn">Import scans</button>
     </form>
   </div>
 </div>

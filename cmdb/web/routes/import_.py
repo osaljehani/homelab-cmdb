@@ -10,6 +10,9 @@ from cmdb.domain.services.docker_import import (
     import_from_path as docker_import_from_path,
 )
 from cmdb.domain.services.k8s_import import import_from_path as k8s_import_from_path
+from cmdb.domain.services.trivy_import import (
+    import_from_path as trivy_import_from_path,
+)
 from cmdb.web.deps import templates, get_db_dep
 
 router = APIRouter()
@@ -108,5 +111,33 @@ async def import_k8s_upload(
             .all(),
             "last_result": log,
             "last_result_type": "k8s",
+        },
+    )
+
+
+@router.post("/upload/trivy")
+async def import_trivy_upload(
+    request: Request,
+    db: Session = Depends(get_db_dep),
+    files: list[UploadFile] = File(...),
+):
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        for f in files:
+            dest = tmp_path / (Path(f.filename).name if f.filename else "upload.json")
+            dest.write_bytes(await f.read())
+        log = trivy_import_from_path(db, tmp, ImportSource.WEB)
+
+    return templates.TemplateResponse(
+        request,
+        "import/index.html",
+        {
+            "active": "import",
+            "logs": db.query(ImportLog)
+            .order_by(ImportLog.imported_at.desc())
+            .limit(20)
+            .all(),
+            "last_result": log,
+            "last_result_type": "trivy",
         },
     )
