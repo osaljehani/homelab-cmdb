@@ -124,6 +124,61 @@ class Container(Base):
     host = relationship("Host", back_populates="containers")
 
 
+class Image(Base):
+    __tablename__ = "images"
+
+    id = Column(Integer, primary_key=True)
+    ref = Column(String, unique=True, nullable=False, index=True)
+    digest = Column(String)
+    expected_noisy = Column(Boolean, default=False, nullable=False)
+    first_seen = Column(DateTime, default=datetime.utcnow)
+    last_scanned_at = Column(DateTime)
+
+    scans = relationship(
+        "ImageScan",
+        back_populates="image",
+        cascade="all, delete-orphan",
+        order_by="ImageScan.scanned_at.desc()",
+    )
+
+
+class ImageScan(Base):
+    __tablename__ = "image_scans"
+
+    id = Column(Integer, primary_key=True)
+    image_id = Column(Integer, ForeignKey("images.id"), nullable=False)
+    scanned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    trivy_version = Column(String)
+    import_log_id = Column(Integer, ForeignKey("import_logs.id"), nullable=True)
+    critical = Column(Integer, default=0)
+    high = Column(Integer, default=0)
+    medium = Column(Integer, default=0)
+    low = Column(Integer, default=0)
+    unknown = Column(Integer, default=0)
+    total = Column(Integer, default=0)
+
+    image = relationship("Image", back_populates="scans")
+    vulnerabilities = relationship(
+        "Vulnerability", back_populates="scan", cascade="all, delete-orphan"
+    )
+
+
+class Vulnerability(Base):
+    __tablename__ = "vulnerabilities"
+
+    id = Column(Integer, primary_key=True)
+    scan_id = Column(Integer, ForeignKey("image_scans.id"), nullable=False)
+    vuln_id = Column(String, nullable=False)
+    pkg_name = Column(String)
+    installed_version = Column(String)
+    fixed_version = Column(String)
+    severity = Column(String)
+    title = Column(Text)
+    target = Column(String)
+
+    scan = relationship("ImageScan", back_populates="vulnerabilities")
+
+
 class TailscaleService(Base):
     __tablename__ = "tailscale_services"
 
@@ -228,4 +283,6 @@ class ImportLog(Base):
     k8s_namespaces_upserted = Column(Integer, nullable=True)
     tailscale_services_upserted = Column(Integer, nullable=True)
     listening_ports_upserted = Column(Integer, nullable=True)
+    images_scanned = Column(Integer, nullable=True)
+    vulnerabilities_upserted = Column(Integer, nullable=True)
     notes = Column(Text)
