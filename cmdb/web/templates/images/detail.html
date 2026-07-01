@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ image.ref }} HomeLabCMDB{% endblock %}
+{% block content %}
+<p><a href="/images">&larr; Images</a></p>
+<h1>{{ image.ref }}</h1>
+<p class="text-muted" style="font-size:.85rem;">
+  Digest: {{ image.digest or 'unknown' }} &middot;
+  Last scanned: {{ image.last_scanned_at.strftime('%Y-%m-%d %H:%M') if image.last_scanned_at else 'never' }}
+</p>
+
+<div class="card">
+  <form action="/images/{{ image.ref }}/noisy" method="post">
+    <input type="hidden" name="on" value="{{ 'false' if image.expected_noisy else 'true' }}">
+    <span>Expected-noisy: <strong>{{ 'yes' if image.expected_noisy else 'no' }}</strong></span>
+    <button type="submit" class="btn">{{ 'Clear noisy flag' if image.expected_noisy else 'Mark noisy' }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Scan history</h2>
+  <table>
+    <thead><tr><th>Scanned</th><th>trivy</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for scan in scans %}
+      <tr><td>{{ scan.scanned_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ scan.trivy_version or '' }}</td>
+          <td>{{ scan.critical }}</td><td>{{ scan.high }}</td><td>{{ scan.medium }}</td>
+          <td>{{ scan.low }}</td><td>{{ scan.total }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if latest %}
+<div class="card">
+  <h2>Latest findings ({{ latest.scanned_at.strftime('%Y-%m-%d') }})</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>CVE</th><th>Package</th><th>Installed</th><th>Fixed</th><th>Title</th></tr></thead>
+    <tbody>
+      {% for v in latest.vulnerabilities %}
+      <tr><td>{{ v.severity }}</td><td>{{ v.vuln_id }}</td><td>{{ v.pkg_name or '' }}</td>
+          <td>{{ v.installed_version or '' }}</td>
+          <td>{{ v.fixed_version or '—' }}</td><td>{{ v.title or '' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

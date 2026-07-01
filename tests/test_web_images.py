@@ -47,3 +47,32 @@ def test_dashboard_has_vuln_panel(db):
         assert "Vulnerabilities" in r.text
     finally:
         app.dependency_overrides.clear()
+
+
+def test_image_detail_and_noisy_toggle(db):
+    client = _client(db)
+    try:
+        client.post("/import/upload/trivy",
+                    files={"files": ("s.json", json.dumps(_envelope()), "application/json")})
+
+        r = client.get("/images/nginx:latest")
+        assert r.status_code == 200
+        assert "CVE-1" in r.text          # vuln listed
+        assert "libc" in r.text           # package listed
+
+        r = client.post("/images/nginx:latest/noisy", data={"on": "true"},
+                        follow_redirects=False)
+        assert r.status_code in (302, 303)
+        from cmdb.domain.services.images import get_image
+        assert get_image(db, "nginx:latest").expected_noisy is True
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_image_detail_404_for_unknown(db):
+    client = _client(db)
+    try:
+        r = client.get("/images/ghost:1")
+        assert r.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
