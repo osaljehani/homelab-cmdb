@@ -8,6 +8,9 @@ from cmdb.domain.services.docker_import import (
     import_from_path as docker_import_from_path,
 )
 from cmdb.domain.services.k8s_import import import_from_path as k8s_import_from_path
+from cmdb.domain.services.trivy_import import (
+    import_from_path as trivy_import_from_path,
+)
 
 app = typer.Typer(help="Import data into CMDB")
 console = Console()
@@ -62,5 +65,22 @@ def import_k8s(
     console.print(
         f"[green]Imported:[/green] {clusters} clusters, {nodes} nodes, {namespaces} namespaces"
     )
+    if notes:
+        console.print(f"[yellow]Warnings:[/yellow]\n{notes}")
+
+
+@app.command("trivy")
+def import_trivy(
+    path: str = typer.Argument(
+        ..., help="Path to a trivy scan envelope JSON file or directory"
+    ),
+) -> None:
+    """Import container-image vulnerability scans from trivy JSON output."""
+    with get_session() as session:
+        log = trivy_import_from_path(session, path, ImportSource.CLI)
+        images = log.images_scanned
+        vulns = log.vulnerabilities_upserted
+        notes = log.notes
+    console.print(f"[green]Imported:[/green] {images} images, {vulns} vulnerabilities")
     if notes:
         console.print(f"[yellow]Warnings:[/yellow]\n{notes}")
