@@ -31,7 +31,7 @@ def _report(ref, vulns, os_name="debian 12.4"):
 @pytest.fixture
 def envelope() -> dict:
     return {
-        "host": "dev-workstation",
+        "host": "testhost",
         "scanned_at": "2026-07-01T04:00:00Z",
         "trivy_version": "0.72.0",
         "images": [
