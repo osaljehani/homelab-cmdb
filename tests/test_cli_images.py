@@ -1,10 +1,8 @@
 import json
-from datetime import datetime
 
 from typer.testing import CliRunner
 
 from cmdb.cli.main import app
-from cmdb.domain.models import Image
 from cmdb.domain.services.images import get_image
 
 runner = CliRunner()
