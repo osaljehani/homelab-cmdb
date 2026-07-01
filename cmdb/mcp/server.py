@@ -18,6 +18,7 @@ from cmdb.domain.services import (
     generate as generate_svc,
     history as history_svc,
     hosts as hosts_svc,
+    images as images_svc,
     k8s as k8s_svc,
     security as security_svc,
 )
@@ -26,10 +27,13 @@ from cmdb.mcp.schemas import (
     HostDetailOut,
     HostHistoryEntry,
     HostOut,
+    ImageDetailOut,
+    ImageSummaryOut,
     K8sClusterOut,
     K8sNodeOut,
     PostureOut,
     PostureSummaryOut,
+    VulnSummaryOut,
 )
 
 mcp = FastMCP("HomeLabCMDB")
@@ -184,7 +188,9 @@ def add_cluster(name: str, description: str | None = None) -> K8sClusterOut:
     with get_session() as session:
         c = k8s_svc.add_cluster(session, name, description)
         session.flush()
-        return K8sClusterOut(name=c.name, description=c.description, node_count=0, namespaces=[])
+        return K8sClusterOut(
+            name=c.name, description=c.description, node_count=0, namespaces=[]
+        )
 
 
 @mcp.tool()
@@ -206,7 +212,9 @@ def add_node(hostname: str, cluster: str, role: str) -> K8sNodeOut:
     with get_session() as session:
         node = k8s_svc.add_node(session, hostname, cluster, role_enum)
         session.flush()
-        return K8sNodeOut(hostname=node.host.hostname, role=node.role.value, cluster=cluster)
+        return K8sNodeOut(
+            hostname=node.host.hostname, role=node.role.value, cluster=cluster
+        )
 
 
 @mcp.tool()
@@ -220,10 +228,14 @@ def remove_node(hostname: str, cluster: str) -> bool:
 
 
 @mcp.tool()
-def generate_inventory_yaml(tag: str | None = None, include_ssh_vars: bool = False) -> str:
+def generate_inventory_yaml(
+    tag: str | None = None, include_ssh_vars: bool = False
+) -> str:
     """Generate an Ansible YAML inventory from the hosts in the CMDB."""
     with get_session() as session:
-        return generate_svc.generate_inventory_yaml(session, tag=tag, include_ssh_vars=include_ssh_vars)
+        return generate_svc.generate_inventory_yaml(
+            session, tag=tag, include_ssh_vars=include_ssh_vars
+        )
 
 
 @mcp.tool()
@@ -256,6 +268,64 @@ def import_ansible(path: str) -> dict:
             "hosts_failed": log.hosts_failed,
             "notes": log.notes,
         }
+
+
+# --- Image vulnerabilities --------------------------------------------------
+
+
+def _image_summary(session, image) -> ImageSummaryOut:
+    scan = images_svc.latest_scan(session, image)
+    return ImageSummaryOut(
+        ref=image.ref,
+        expected_noisy=image.expected_noisy,
+        digest=image.digest,
+        last_scanned_at=image.last_scanned_at,
+        critical=scan.critical if scan else 0,
+        high=scan.high if scan else 0,
+        medium=scan.medium if scan else 0,
+        low=scan.low if scan else 0,
+        total=scan.total if scan else 0,
+    )
+
+
+@mcp.tool()
+def list_image_scans() -> list[ImageSummaryOut]:
+    """List scanned container images with their latest severity counts."""
+    with get_session() as session:
+        return [_image_summary(session, img) for img in images_svc.list_images(session)]
+
+
+@mcp.tool()
+def image_vulnerabilities(ref: str) -> ImageDetailOut:
+    """Full vulnerability list for an image's latest scan. Raises if not found."""
+    with get_session() as session:
+        image = images_svc.get_image(session, ref)
+        if image is None:
+            raise ValueError(f"Image '{ref}' not found")
+        scan = images_svc.latest_scan(session, image)
+        return ImageDetailOut(
+            ref=image.ref,
+            expected_noisy=image.expected_noisy,
+            scanned_at=scan.scanned_at if scan else None,
+            trivy_version=scan.trivy_version if scan else None,
+            vulnerabilities=[v for v in (scan.vulnerabilities if scan else [])],
+        )
+
+
+@mcp.tool()
+def vuln_summary() -> VulnSummaryOut:
+    """Fleet vulnerability rollup (latest scan per image, excluding noisy images)."""
+    with get_session() as session:
+        return VulnSummaryOut(**images_svc.vuln_summary(session))
+
+
+@mcp.tool()
+def set_image_noisy(ref: str, noisy: bool) -> ImageSummaryOut:
+    """Flag/unflag an image as expected-noisy (excluded from vuln_summary)."""
+    with get_session() as session:
+        image = images_svc.set_noisy(session, ref, noisy)
+        session.flush()
+        return _image_summary(session, image)
 
 
 def serve() -> None:

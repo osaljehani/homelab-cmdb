@@ -130,3 +130,44 @@ class K8sNodeOut(BaseModel):
     hostname: str
     role: str
     cluster: str
+
+
+class ImageSummaryOut(_ORMModel):
+    ref: str
+    expected_noisy: bool = False
+    digest: str | None = None
+    last_scanned_at: datetime | None = None
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    total: int = 0
+
+
+class VulnerabilityOut(_ORMModel):
+    vuln_id: str
+    severity: str | None = None
+    pkg_name: str | None = None
+    installed_version: str | None = None
+    fixed_version: str | None = None
+    title: str | None = None
+    target: str | None = None
+
+
+class ImageDetailOut(BaseModel):
+    ref: str
+    expected_noisy: bool = False
+    scanned_at: datetime | None = None
+    trivy_version: str | None = None
+    vulnerabilities: list[VulnerabilityOut] = []
+
+
+class VulnSummaryOut(BaseModel):
+    images: int = 0
+    scanned_images: int = 0
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    unknown: int = 0
+    total: int = 0
