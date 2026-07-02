@@ -1,6 +1,6 @@
 # Design: image UI — stale badge + targeted delete
 
-**Status:** proposed (for a dedicated implementation session)
+**Status:** delivered (2026-07-02)
 **Date:** 2026-07-02
 **Related:** builds on `cmdb images rm` CLI + `delete_image` MCP tool (commits `eb27c7e`, `04cdacd`).
 

@@ -76,3 +76,75 @@ def test_image_detail_404_for_unknown(db):
         assert r.status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+def _envelope_at(ts, images):
+    """A trivy scan-run envelope at timestamp `ts` covering the given image refs."""
+    return {
+        "scanned_at": ts, "trivy_version": "0.72.0",
+        "images": [{
+            "ArtifactName": ref, "Metadata": {"ImageID": "sha256:x"},
+            "Results": [{"Target": ref, "Vulnerabilities": [
+                {"VulnerabilityID": "CVE-1", "Severity": "CRITICAL", "PkgName": "libc"}]}],
+        } for ref in images],
+    }
+
+
+def _upload(client, envelope):
+    return client.post(
+        "/import/upload/trivy",
+        files={"files": ("s.json", json.dumps(envelope), "application/json")},
+    )
+
+
+def test_delete_image_removes_and_redirects_with_counts(db):
+    client = _client(db)
+    try:
+        _upload(client, _envelope())
+        r = client.post("/images/nginx:latest/delete", follow_redirects=False)
+        assert r.status_code in (302, 303)
+        assert "deleted=nginx:latest" in r.headers["location"]
+        from cmdb.domain.services.images import get_image
+        assert get_image(db, "nginx:latest") is None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_delete_unknown_image_404(db):
+    client = _client(db)
+    try:
+        r = client.post("/images/ghost:1/delete", follow_redirects=False)
+        assert r.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_deleted_notice_renders_on_list(db):
+    client = _client(db)
+    try:
+        r = client.get("/images/?deleted=nginx:latest&scans=2&vulns=5")
+        assert r.status_code == 200
+        assert "nginx:latest" in r.text
+        assert "Removed" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_stale_badge_marks_dropped_image_only(db):
+    client = _client(db)
+    try:
+        # First run: both images present.
+        _upload(client, _envelope_at("2026-07-01T04:00:00Z", ["nginx:latest", "old:1"]))
+        # Second, newer run: old:1 has dropped out.
+        _upload(client, _envelope_at("2026-07-05T04:00:00Z", ["nginx:latest"]))
+
+        r = client.get("/images/")
+        assert r.status_code == 200
+        # A crude but reliable check: the stale badge sits on old:1's row, not nginx's.
+        assert "stale" in r.text
+        old_row = r.text.split("old:1", 1)[1].split("</tr>", 1)[0]
+        nginx_row = r.text.split("nginx:latest", 1)[1].split("</tr>", 1)[0]
+        assert "stale" in old_row
+        assert "stale" not in nginx_row
+    finally:
+        app.dependency_overrides.clear()

@@ -4,6 +4,12 @@
 {% block content %}
 <h1>Image Vulnerabilities</h1>
 
+{% if deleted %}
+<p class="badge badge-red" style="display:inline-block;">
+  Removed {{ deleted }} — {{ deleted_scans }} scans, {{ deleted_vulns }} vulnerabilities.
+</p>
+{% endif %}
+
 {% if not rows %}
 {{ empty_state(
      "No image scans yet",
@@ -19,7 +25,8 @@
       {% for row in rows %}
       <tr {% if row.image.expected_noisy %}class="text-muted"{% endif %}>
         <td><a href="/images/{{ row.image.ref }}">{{ row.image.ref }}</a>
-            {% if row.image.expected_noisy %}<span class="badge">noisy</span>{% endif %}</td>
+            {% if row.image.expected_noisy %}<span class="badge">noisy</span>{% endif %}
+            {% if row.stale %}<span class="badge" title="Not seen in the most recent scan run">stale</span>{% endif %}</td>
         {% if row.scan %}
         <td>{{ row.scan.critical }}</td><td>{{ row.scan.high }}</td>
         <td>{{ row.scan.medium }}</td><td>{{ row.scan.low }}</td><td>{{ row.scan.total }}</td>
