@@ -112,14 +112,19 @@
     }
 
     function runLayout() {
+      // fcose handles compound nesting well; fall back to the built-in cose
+      // if the extension failed to load for any reason.
+      var haveFcose = typeof cytoscapeFcose !== 'undefined';
       cy.layout({
-        name: 'cose',
+        name: haveFcose ? 'fcose' : 'cose',
         animate: false,
         padding: 30,
+        randomize: true,
         nodeRepulsion: 12000,
         idealEdgeLength: 80,
-        nestingFactor: 1.2
+        nestingFactor: 0.8
       }).run();
+      cy.fit(undefined, 40);
     }
 
     var panel = document.getElementById('topology-panel');
