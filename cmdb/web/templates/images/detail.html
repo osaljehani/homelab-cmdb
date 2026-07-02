@@ -3,7 +3,9 @@
 {% block title %}{{ image.ref }} HomeLabCMDB{% endblock %}
 {% block content %}
 {{ breadcrumbs([("Images", "/images"), (image.ref, none)]) }}
-<h1>{{ image.ref }}</h1>
+<h1>{{ image.ref }}
+  {% if stale %}<span class="badge" title="Not seen in the most recent scan run">stale</span>{% endif %}
+</h1>
 <p class="text-muted" style="font-size:.85rem;">
   Digest: {{ image.digest or 'unknown' }} &middot;
   Last scanned: {{ image.last_scanned_at.strftime('%Y-%m-%d %H:%M') if image.last_scanned_at else 'never' }}
@@ -46,4 +48,16 @@
   </table>
 </div>
 {% endif %}
+
+<div class="card">
+  <h2>Remove image</h2>
+  <p class="text-muted" style="font-size:.85rem;">
+    Deletes {{ image.ref }} and its entire scan history ({{ scans|length }} scans,
+    {{ vuln_count }} vulnerabilities). This cannot be undone.
+  </p>
+  <form action="/images/{{ image.ref }}/delete" method="post"
+        onsubmit="return confirm('Delete {{ image.ref }} and its entire scan history ({{ scans|length }} scans, {{ vuln_count }} vulnerabilities)? This cannot be undone.')">
+    <button type="submit" class="btn btn-danger">Remove image</button>
+  </form>
+</div>
 {% endblock %}
