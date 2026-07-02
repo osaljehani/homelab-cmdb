@@ -3,22 +3,22 @@
 {% block content %}
 <h1>Dashboard</h1>
 <div class="stats-row">
-  <div class="stat-card">
+  <a class="stat-card" href="/hosts">
     <div class="value">{{ host_count }}</div>
     <div class="label">Hosts</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="/containers">
     <div class="value">{{ container_count }}</div>
     <div class="label">Containers</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="/k8s">
     <div class="value">{{ cluster_count }}</div>
     <div class="label">K8s Clusters</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="/import">
     <div class="value">{{ last_import.imported_at.strftime('%Y-%m-%d') if last_import else ' ' }}</div>
     <div class="label">Last Import</div>
-  </div>
+  </a>
 </div>
 
 {% if security and security.total %}
@@ -34,8 +34,8 @@
     <tbody>
       {% for h in security.exposed_hosts %}
       {% set p = host_posture(h) %}
-      <tr style="cursor:pointer" onclick="location.href='/hosts/{{ h.hostname }}'">
-        <td><strong>{{ h.hostname }}</strong></td>
+      <tr class="row-link" onclick="location.href='/hosts/{{ h.hostname }}'">
+        <td><a href="/hosts/{{ h.hostname }}"><strong>{{ h.hostname }}</strong></a></td>
         <td><span class="badge badge-red">{{ p.issues | join(', ') }}</span></td>
       </tr>
       {% endfor %}

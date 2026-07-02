@@ -394,6 +394,10 @@ input[type=file] {
 
 .stat-card:hover { border-color: var(--text-subtle); transform: translateY(-2px); }
 
+a.stat-card { display: block; color: inherit; }
+a.stat-card:hover { border-color: var(--accent); }
+a.stat-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+
 .stat-card .value {
   font-family: var(--font-mono);
   font-size: 1.9rem;
@@ -502,6 +506,55 @@ pre {
 .diff-field { color: var(--text-muted); }
 .diff-old { color: var(--status-critical); }
 .diff-new { color: var(--accent); }
+
+/* ── Breadcrumbs ── */
+.breadcrumbs {
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  color: var(--text-subtle);
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: wrap;
+}
+
+.breadcrumbs a { color: var(--text-muted); transition: color .15s var(--ease); }
+.breadcrumbs a:hover { color: var(--accent); }
+.breadcrumbs .crumb-sep { color: var(--text-subtle); }
+.breadcrumbs .crumb-current { color: var(--text-main); }
+
+/* ── Empty states ── */
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.empty-state-glyph {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  color: var(--text-subtle);
+  margin-bottom: .5rem;
+}
+
+.empty-state-title {
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: .25rem;
+}
+
+.empty-state-hint {
+  font-size: .875rem;
+  margin: 0 auto 1rem;
+  max-width: 34rem;
+}
+
+/* ── Row links ── rows that navigate; the primary cell holds a real <a> ── */
+tr.row-link { cursor: pointer; }
+tr.row-link td a { color: inherit; }
 
 /* ── Utilities ── */
 .text-muted  { color: var(--text-muted); }

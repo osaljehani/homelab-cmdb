@@ -1,3 +1,5 @@
+{% from "_empty_state.html" import empty_state %}
+{% if hosts %}
 <table>
   <thead>
     <tr>
@@ -13,8 +15,8 @@
   </thead>
   <tbody>
   {% for h in hosts %}
-    <tr style="cursor:pointer" onclick="location.href='/hosts/{{ h.hostname }}'">
-      <td><strong>{{ h.hostname }}</strong></td>
+    <tr class="row-link" onclick="location.href='/hosts/{{ h.hostname }}'">
+      <td><a href="/hosts/{{ h.hostname }}"><strong>{{ h.hostname }}</strong></a></td>
       <td>{{ h.primary_ipv4 or ' ' }}</td>
       <td>{{ h.os_distribution or '' }} {{ h.os_version or '' }}</td>
       <td>{{ h.cpu_cores or '?' }}c/{{ h.cpu_threads or '?' }}t</td>
@@ -23,8 +25,12 @@
       <td>{% set p = host_posture(h) %}{% if p.hardened %}<span class="badge">{{ p.mac }}</span>{% else %}<span class="badge badge-red">exposed</span>{% endif %}</td>
       <td>{{ h.last_seen.strftime('%Y-%m-%d') if h.last_seen else ' ' }}</td>
     </tr>
-  {% else %}
-    <tr><td colspan="8" class="text-muted text-center" style="padding:2rem">No hosts found.</td></tr>
   {% endfor %}
   </tbody>
 </table>
+{% else %}
+{{ empty_state(
+     "No hosts here",
+     "Import ansible facts or collect them over SSH to populate the inventory.",
+     "Collect now", "/collect") }}
+{% endif %}
