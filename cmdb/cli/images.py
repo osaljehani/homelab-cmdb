@@ -41,6 +41,30 @@ def list_images() -> None:
     console.print(table)
 
 
+@app.command("rm")
+def remove_image(
+    ref: str = typer.Argument(..., help="Image ref to delete, e.g. semaphoreui/semaphore:latest"),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip the confirmation prompt"
+    ),
+) -> None:
+    """Delete an image and its entire scan history from the CMDB."""
+    with get_session() as session:
+        image = images_svc.get_image(session, ref)
+        if image is None:
+            console.print(f"[red]Image '{ref}' not found[/red]")
+            raise typer.Exit(1)
+        if not yes:
+            typer.confirm(
+                f"Delete '{ref}' and all of its scan history?", abort=True
+            )
+        result = images_svc.delete_image(session, ref)
+    console.print(
+        f"[green]Removed {ref}[/green] "
+        f"({result['scans']} scans, {result['vulnerabilities']} vulnerabilities)"
+    )
+
+
 @app.command("noisy")
 def set_noisy(
     ref: str = typer.Argument(..., help="Image ref, e.g. hexstrike:latest"),

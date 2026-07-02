@@ -54,3 +54,34 @@ def test_import_trivy_and_list(db, tmp_path, monkeypatch):
     r = runner.invoke(app, ["images", "noisy", "nginx:latest", "--on"])
     assert r.exit_code == 0
     assert get_image(db, "nginx:latest").expected_noisy is True
+
+
+def _import_one(db, tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _fake_session():
+        yield db
+
+    monkeypatch.setattr("cmdb.cli.import_.get_session", _fake_session)
+    monkeypatch.setattr("cmdb.cli.images.get_session", _fake_session)
+    f = tmp_path / "scan.json"
+    f.write_text(json.dumps(_envelope()))
+    runner.invoke(app, ["import", "trivy", str(f)])
+
+
+def test_rm_deletes_image_and_reports_counts(db, tmp_path, monkeypatch):
+    _import_one(db, tmp_path, monkeypatch)
+    assert get_image(db, "nginx:latest") is not None
+
+    r = runner.invoke(app, ["images", "rm", "nginx:latest", "--yes"])
+    assert r.exit_code == 0, r.output
+    assert "nginx:latest" in r.output
+    assert get_image(db, "nginx:latest") is None
+
+
+def test_rm_missing_image_errors(db, tmp_path, monkeypatch):
+    _import_one(db, tmp_path, monkeypatch)
+    r = runner.invoke(app, ["images", "rm", "ghost:1", "--yes"])
+    assert r.exit_code != 0
+    assert "not found" in r.output

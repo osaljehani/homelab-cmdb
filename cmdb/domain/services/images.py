@@ -32,6 +32,22 @@ def set_noisy(session: Session, ref: str, value: bool) -> Image:
     return image
 
 
+def delete_image(session: Session, ref: str) -> dict:
+    """Delete an image and its entire scan history (scans + vulnerabilities).
+
+    Returns the counts removed. Raises ValueError if the image is unknown.
+    The ORM cascade (Image -> scans -> vulnerabilities) handles the children.
+    """
+    image = get_image(session, ref)
+    if image is None:
+        raise ValueError(f"Image '{ref}' not found")
+    scans = len(image.scans)
+    vulns = sum(len(scan.vulnerabilities) for scan in image.scans)
+    session.delete(image)
+    session.flush()
+    return {"ref": ref, "scans": scans, "vulnerabilities": vulns}
+
+
 def vuln_summary(session: Session) -> dict:
     """Rollup over the latest scan per non-noisy image."""
     images = list_images(session, include_noisy=False)
