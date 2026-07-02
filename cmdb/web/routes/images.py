@@ -9,10 +9,23 @@ router = APIRouter()
 
 
 @router.get("/")
-def images_page(request: Request, db: Session = Depends(get_db_dep)):
+def images_page(
+    request: Request,
+    db: Session = Depends(get_db_dep),
+    deleted: str | None = None,
+    scans: int | None = None,
+    vulns: int | None = None,
+):
+    newest = images_svc.newest_scan_time(db)
     rows = []
     for image in images_svc.list_images(db):
-        rows.append({"image": image, "scan": images_svc.latest_scan(db, image)})
+        rows.append(
+            {
+                "image": image,
+                "scan": images_svc.latest_scan(db, image),
+                "stale": images_svc.is_stale(image, newest),
+            }
+        )
     # Non-noisy first, then by descending latest-critical count.
     rows.sort(
         key=lambda r: (
@@ -23,7 +36,13 @@ def images_page(request: Request, db: Session = Depends(get_db_dep)):
     return templates.TemplateResponse(
         request,
         "images/list.html",
-        {"active": "images", "rows": rows},
+        {
+            "active": "images",
+            "rows": rows,
+            "deleted": deleted,
+            "deleted_scans": scans,
+            "deleted_vulns": vulns,
+        },
     )
 
 
@@ -33,6 +52,8 @@ def image_detail(ref: str, request: Request, db: Session = Depends(get_db_dep)):
     if image is None:
         raise HTTPException(status_code=404, detail=f"Image '{ref}' not found")
     latest = images_svc.latest_scan(db, image)
+    newest = images_svc.newest_scan_time(db)
+    vuln_count = sum(len(scan.vulnerabilities) for scan in image.scans)
     return templates.TemplateResponse(
         request,
         "images/detail.html",
@@ -41,6 +62,8 @@ def image_detail(ref: str, request: Request, db: Session = Depends(get_db_dep)):
             "image": image,
             "latest": latest,
             "scans": image.scans,  # already ordered scanned_at desc
+            "stale": images_svc.is_stale(image, newest),
+            "vuln_count": vuln_count,
         },
     )
 
@@ -51,3 +74,16 @@ def image_toggle_noisy(
 ):
     images_svc.set_noisy(db, ref, on)
     return RedirectResponse(url=f"/images/{ref}", status_code=303)
+
+
+@router.post("/{ref:path}/delete")
+def image_delete(ref: str, db: Session = Depends(get_db_dep)):
+    try:
+        result = images_svc.delete_image(db, ref)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Image '{ref}' not found")
+    url = (
+        f"/images/?deleted={result['ref']}"
+        f"&scans={result['scans']}&vulns={result['vulnerabilities']}"
+    )
+    return RedirectResponse(url=url, status_code=303)
