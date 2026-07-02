@@ -1,0 +1,12 @@
+# Schedule for homelabcmdb-image-scan.service. Runs daily at 04:00; Persistent
+# catches up a missed run after downtime. Adjust OnCalendar to taste
+# (see `man systemd.time`). Install steps are in the .service header.
+[Unit]
+Description=Daily HomeLabCMDB image vulnerability scan
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
