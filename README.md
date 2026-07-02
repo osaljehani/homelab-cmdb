@@ -144,6 +144,29 @@ container set. K8s import is additive re-runs never duplicate nodes or namespace
 
 ---
 
+## Automating image scans
+
+CMDB ingests container-image vulnerability scans but never runs a scanner itself. An external
+job produces trivy output, wraps it in an envelope JSON, and pushes it in via
+`cmdb import trivy <file>` or the web upload at `/import`. Two ready-to-use example scripts
+scan on a schedule and import for you:
+
+```bash
+# Docker runtime scan: scans the images of running containers (requires docker + jq)
+./scripts/trivy-scan.sh
+
+# Optional OCI-registry scan: scans a Zot-style registry catalog (requires curl + jq)
+./scripts/trivy-scan-registry.sh
+```
+
+Run them from the systemd timer template in `scripts/systemd/` (or cron). A running container
+appears under **Images** only once its image has been scanned & imported — the Images view is
+scan-driven, separate from the container inventory. See
+[docs/image-scanning.md](docs/image-scanning.md) for the envelope contract, setup, and how to
+roll your own scanner.
+
+---
+
 ## On-demand collection (agentless)
 
 Instead of running export scripts on each device and uploading files, the CMDB host can reach out
