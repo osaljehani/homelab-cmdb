@@ -68,6 +68,47 @@ def test_delete_image_raises_on_missing(db: Session):
         images_svc.delete_image(db, "ghost:1")
 
 
+def _scanned(db, ref, last_scanned_at, **kw):
+    img = _img(db, ref, scans=[(last_scanned_at, 0, 0)], **kw)
+    img.last_scanned_at = last_scanned_at
+    db.flush()
+    return img
+
+
+def test_newest_scan_time_is_max_across_all_scans(db: Session):
+    _img(db, "a:1", scans=[(datetime(2026, 7, 1), 0, 0)])
+    _img(db, "b:1", scans=[(datetime(2026, 7, 5), 0, 0), (datetime(2026, 7, 3), 0, 0)])
+    assert images_svc.newest_scan_time(db) == datetime(2026, 7, 5)
+
+
+def test_newest_scan_time_none_when_no_scans(db: Session):
+    _img(db, "unscanned:1")
+    assert images_svc.newest_scan_time(db) is None
+
+
+def test_is_stale_true_when_last_scan_predates_newest(db: Session):
+    newest = datetime(2026, 7, 5)
+    old = _scanned(db, "gone:1", datetime(2026, 7, 1))
+    assert images_svc.is_stale(old, newest) is True
+
+
+def test_is_stale_false_for_image_in_newest_run(db: Session):
+    newest = datetime(2026, 7, 5)
+    current = _scanned(db, "nginx:latest", datetime(2026, 7, 5))
+    assert images_svc.is_stale(current, newest) is False
+
+
+def test_is_stale_false_for_never_scanned_image(db: Session):
+    newest = datetime(2026, 7, 5)
+    never = _img(db, "unscanned:1")  # last_scanned_at is None
+    assert images_svc.is_stale(never, newest) is False
+
+
+def test_is_stale_false_when_no_scans_anywhere(db: Session):
+    lone = _scanned(db, "solo:1", datetime(2026, 7, 1))
+    assert images_svc.is_stale(lone, images_svc.newest_scan_time(db)) is False
+
+
 def test_vuln_summary_excludes_noisy_and_uses_latest(db: Session):
     _img(db, "nginx:latest", scans=[(datetime(2026, 7, 1), 1, 1), (datetime(2026, 7, 3), 2, 3)])
     _img(db, "noisy-tool:latest", noisy=True, scans=[(datetime(2026, 7, 3), 99, 99)])
