@@ -35,12 +35,35 @@
       <a href="/import" {% if active == 'import' %}class="active"{% endif %}>Import</a>
       <a href="/collect" {% if active == 'collect' %}class="active"{% endif %}>Collect</a>
       <a href="/generate" {% if active == 'generate' %}class="active"{% endif %}>Generate</a>
+      <form action="/search" method="get" class="global-search" autocomplete="off">
+        <input type="search" name="gq" placeholder="Search…" aria-label="Search hosts, containers, images"
+               hx-get="/search" hx-trigger="input changed delay:250ms, focus" hx-target="#global-search-results">
+        <div id="global-search-results" class="search-dropdown"></div>
+      </form>
       <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">Light</button>
     </div>
   </nav>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script>
+    (function () {
+      /* Global search dropdown: dismiss on outside click / Escape, clear with input. */
+      var form = document.querySelector('.global-search');
+      if (!form) return;
+      var input = form.querySelector('input[name=gq]');
+      var results = document.getElementById('global-search-results');
+      document.addEventListener('click', function (e) {
+        if (!form.contains(e.target)) results.innerHTML = '';
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { results.innerHTML = ''; input.blur(); }
+      });
+      input.addEventListener('input', function () {
+        if (!input.value.trim()) results.innerHTML = '';
+      });
+    })();
+  </script>
   <script>
     (function () {
       var btn = document.getElementById('theme-toggle');
