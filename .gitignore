@@ -6,6 +6,8 @@ dist/
 *.egg-info/
 .pytest_cache/
 *.db
+# Trivy scan JSONs imported by the image-scan pipeline — real homelab vuln data
+data/scans/
 .superpowers/
 CLAUDE.md
 .remember/
