@@ -1,0 +1,21 @@
+# HomeLabCMDB image vulnerability scan (trivy -> HomeLabCMDB).
+#
+# Install (as root):
+#   install -m 0755 scripts/trivy-scan.sh /usr/local/sbin/trivy-scan.sh
+#   cp scripts/systemd/homelabcmdb-image-scan.{service,timer} /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now homelabcmdb-image-scan.timer
+#
+# Run once on demand:  systemctl start homelabcmdb-image-scan.service
+# Follow logs:         journalctl -u homelabcmdb-image-scan.service -f
+#
+# Configure the scan via /etc/homelabcmdb-image-scan.env (see the script header),
+# or swap ExecStart for scripts/trivy-scan-registry.sh to scan an OCI registry.
+[Unit]
+Description=HomeLabCMDB image vulnerability scan (trivy -> HomeLabCMDB)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/trivy-scan.sh
