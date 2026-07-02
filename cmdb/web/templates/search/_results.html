@@ -1,0 +1,15 @@
+{% if hits %}
+<ul class="search-dropdown-list">
+  {% for hit in hits %}
+  <li>
+    <a href="{{ hit.url }}">
+      <span class="search-kind">{{ hit.kind }}</span>
+      <span class="search-label">{{ hit.label }}</span>
+      {% if hit.sublabel %}<span class="search-sublabel">{{ hit.sublabel }}</span>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% elif gq.strip()|length >= 2 %}
+<div class="search-dropdown-none">No matches for “{{ gq }}”</div>
+{% endif %}

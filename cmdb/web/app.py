@@ -14,6 +14,7 @@ from cmdb.web.routes import (
     generate,
     settings,
     images,
+    search,
 )
 
 
@@ -36,3 +37,4 @@ app.include_router(k8s.router, prefix="/k8s")
 app.include_router(generate.router, prefix="/generate")
 app.include_router(settings.router, prefix="/settings")
 app.include_router(images.router, prefix="/images")
+app.include_router(search.router, prefix="/search")

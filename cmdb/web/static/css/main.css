@@ -205,6 +205,89 @@ nav {
 
 .theme-toggle:hover { color: var(--text-main); border-color: var(--text-subtle); }
 
+/* ── Global search (nav) ── */
+.global-search {
+  position: relative;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.global-search input[type=search] {
+  width: 180px;
+  max-width: 220px;
+  padding: .35rem .7rem;
+  font-size: .82rem;
+  transition: border-color .15s var(--ease), box-shadow .15s var(--ease), width .2s var(--ease);
+}
+
+.global-search input[type=search]:focus { width: 220px; }
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 200;
+}
+
+.search-dropdown:empty { display: none; }
+
+.search-dropdown-list,
+.search-dropdown-none {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.search-dropdown-none {
+  padding: .8rem 1rem;
+  color: var(--text-muted);
+  font-size: .85rem;
+}
+
+.search-dropdown-list { list-style: none; margin: 0; padding: .35rem; }
+
+.search-dropdown-list a {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  padding: .5rem .65rem;
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  min-width: 0;
+}
+
+.search-dropdown-list a:hover,
+.search-dropdown-list a:focus-visible { background: var(--bg-surface-hover); outline: none; }
+
+.search-kind {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 5.2em;
+}
+
+.search-label {
+  color: var(--text-main);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-sublabel {
+  color: var(--text-subtle);
+  font-size: .75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Layout ── */
 main {
   padding: 2.5rem 1.5rem;
@@ -599,6 +682,11 @@ tr.row-link td a { color: inherit; }
   .nav-links a::after { display: none; }
 
   .theme-toggle { margin: .75rem 1.25rem; }
+
+  .global-search { margin: .75rem 1.25rem 0; }
+  .global-search input[type=search],
+  .global-search input[type=search]:focus { width: 100%; max-width: none; }
+  .search-dropdown { left: 0; right: 0; width: auto; }
 
   .nav-toggle:checked ~ .nav-links { display: flex; }
 
