@@ -1,0 +1,83 @@
+{# Server-rendered chart primitives. Colors come from CSS custom properties so
+   every chart follows the light/dark theme with no JS. Data shaping happens in
+   cmdb/domain/services/dashboard.py — these macros only map numbers to pixels. #}
+
+{% macro sparkline(points, width=560, height=90) %}
+{% if points | length >= 2 %}
+{% set pad = 8 %}
+{% set maxv = (points | map(attribute='total') | max) or 1 %}
+{% set n = points | length %}
+{% set coords = namespace(list=[]) %}
+{% for p in points %}
+  {% set x = pad + loop.index0 * (width - 2 * pad) / (n - 1) %}
+  {% set y = height - pad - (p.total / maxv) * (height - 2 * pad) %}
+  {% set coords.list = coords.list + [(x | round(1), y | round(1), p)] %}
+{% endfor %}
+<svg class="sparkline" viewBox="0 0 {{ width }} {{ height }}" role="img"
+     aria-label="Vulnerability trend, {{ points[0].date }} to {{ points[-1].date }}">
+  <line class="spark-baseline" x1="{{ pad }}" y1="{{ height - pad }}" x2="{{ width - pad }}" y2="{{ height - pad }}"/>
+  <polyline class="spark-line" fill="none"
+            points="{% for x, y, p in coords.list %}{{ x }},{{ y }} {% endfor %}"/>
+  {% for x, y, p in coords.list %}
+  <circle class="spark-dot{% if loop.last %} spark-dot-last{% endif %}" cx="{{ x }}" cy="{{ y }}" r="7">
+    <title>{{ p.date }} — {{ p.total }} total ({{ p.critical }} critical, {{ p.high }} high)</title>
+  </circle>
+  {% endfor %}
+</svg>
+<div class="spark-caption">
+  <span>{{ points[0].date.strftime('%b %d') }}</span>
+  <span class="spark-last-value">{{ points[-1].total }} now</span>
+  <span>{{ points[-1].date.strftime('%b %d') }}</span>
+</div>
+{% else %}
+<p class="chart-placeholder">Not enough scan history for a trend yet — upload trivy scans over time.</p>
+{% endif %}
+{% endmacro %}
+
+{% macro _stacked_bar(parts, aria) %}
+{# parts: list of (label, value, css-class); zero segments are skipped in the
+   bar but always shown in the legend so counts are never color-alone. #}
+{% set denom = parts | map(attribute=1) | sum %}
+{% if denom > 0 %}
+<div class="hstack-bar" role="img" aria-label="{{ aria }}">
+  {% for label, value, cls in parts if value %}
+  <div class="seg {{ cls }}" style="flex:{{ value }}" title="{{ value }} {{ label }}"></div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="bar-legend">
+  {% for label, value, cls in parts %}
+  <span class="legend-item"><i class="legend-dot {{ cls }}"></i>{{ label }} <b>{{ value }}</b></span>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro severity_bar(vs) %}
+{% set parts = [
+  ("critical", vs.critical, "sev-critical"),
+  ("high", vs.high, "sev-high"),
+  ("medium", vs.medium, "sev-medium"),
+  ("low", vs.low, "sev-low"),
+] %}
+{% if vs.critical + vs.high + vs.medium + vs.low == 0 %}
+<p class="chart-placeholder chart-placeholder-ok">No vulnerabilities in the latest scans.</p>
+{% else %}
+{{ _stacked_bar(parts, "Vulnerabilities by severity") }}
+{% endif %}
+{% endmacro %}
+
+{% macro freshness_meter(f) %}
+{{ _stacked_bar([
+     ("fresh", f.fresh, "fresh-ok"),
+     ("stale", f.stale, "fresh-stale"),
+     ("never seen", f.never, "fresh-never"),
+   ], "Hosts by data freshness") }}
+{% endmacro %}
+
+{% macro hbar_row(label, count, maxcount) %}
+<div class="hbar-row">
+  <span class="hbar-label">{{ label }}</span>
+  <div class="hbar-track"><div class="hbar-fill" style="width:{{ (count / maxcount * 100) | round }}%"></div></div>
+  <span class="hbar-count">{{ count }}</span>
+</div>
+{% endmacro %}
