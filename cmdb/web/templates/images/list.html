@@ -1,10 +1,14 @@
 {% extends "base.html" %}
+{% from "_empty_state.html" import empty_state %}
 {% block title %}Images HomeLabCMDB{% endblock %}
 {% block content %}
 <h1>Image Vulnerabilities</h1>
 
 {% if not rows %}
-<div class="card"><p class="text-muted">No image scans imported yet. Upload a trivy scan on the <a href="/import">Import</a> page.</p></div>
+{{ empty_state(
+     "No image scans yet",
+     "Scan your container images with trivy and upload the JSON report on the Import page.",
+     "Go to Import", "/import") }}
 {% else %}
 <div class="card">
   <table>

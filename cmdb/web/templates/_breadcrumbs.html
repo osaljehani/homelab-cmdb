@@ -1,0 +1,9 @@
+{% macro breadcrumbs(items) %}
+{# items: list of (label, url) pairs; the last item is the current page (url may be none) #}
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  {% for label, url in items %}
+    {% if not loop.last and url %}<a href="{{ url }}">{{ label }}</a><span class="crumb-sep">›</span>
+    {% else %}<span class="crumb-current">{{ label }}</span>{% endif %}
+  {% endfor %}
+</nav>
+{% endmacro %}
