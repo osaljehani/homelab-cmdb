@@ -688,6 +688,104 @@ pre {
 
 .hbar-count { font-family: var(--font-mono); color: var(--text-main); text-align: right; font-size: .78rem; }
 
+/* ── Topology ── */
+.topology-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.layer-toggles {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+
+.layer-toggles label { display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; }
+.layer-toggles input { accent-color: var(--accent); }
+
+.topology-wrap { position: relative; }
+
+#cy {
+  height: calc(100vh - 300px);
+  min-height: 420px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.topology-panel {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 300px;
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 1rem 1.25rem;
+  z-index: 10;
+}
+
+.topology-panel .panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .75rem;
+}
+
+.topology-panel h2 { word-break: break-all; }
+
+.topology-panel h3 {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  font-weight: 500;
+  color: var(--text-subtle);
+  margin: 1rem 0 .4rem;
+}
+
+.panel-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 .25rem;
+}
+
+.panel-close:hover { color: var(--text-main); }
+
+.panel-list { list-style: none; margin: 0; padding: 0; font-size: .82rem; }
+.panel-list li { padding: .2rem 0; }
+.panel-addr { color: var(--text-subtle); font-size: .75rem; }
+.panel-funnel { color: var(--status-critical); }
+
+.topology-panel table th { width: 5.5rem; }
+#panel-open { margin-top: 1rem; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem 1.25rem;
+  margin-top: .9rem;
+  font-size: .8rem;
+  color: var(--text-muted);
+}
+
+.legend-host      { background: var(--text-subtle); }
+.legend-k8s       { background: var(--accent); }
+.legend-container { background: var(--bg-surface-hover); border: 1px solid var(--text-subtle); }
+.legend-subnet    { background: transparent; border: 1px dashed var(--text-subtle); border-radius: 50%; }
+.legend-exposed   { background: transparent; border: 2px solid var(--accent); border-radius: 50%; }
+
 /* ── Breadcrumbs ── */
 .breadcrumbs {
   font-family: var(--font-mono);
