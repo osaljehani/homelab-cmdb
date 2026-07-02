@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
+from cmdb.web.deps import STATIC_DIR
 from cmdb.web.routes import (
     dashboard,
     hosts,
@@ -24,6 +26,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="HomeLabCMDB", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(dashboard.router)
 app.include_router(hosts.router, prefix="/hosts")
 app.include_router(containers.router, prefix="/containers")
