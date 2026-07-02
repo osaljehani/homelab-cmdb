@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Settings HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<div class="card">
+  <h2>Runtime configuration</h2>
+  <p class="text-muted" style="font-size:.875rem;">
+    Set via <code>CMDB_*</code> environment variables; restart to apply.
+  </p>
+  <table>
+    <thead><tr><th>Setting</th><th>Value</th><th>Env var</th></tr></thead>
+    <tbody>
+      <tr><td>Database path</td><td><code>{{ settings.db_path }}</code></td><td><code>CMDB_DB_PATH</code></td></tr>
+      <tr><td>Bind address</td><td><code>{{ settings.host }}</code></td><td><code>CMDB_HOST</code></td></tr>
+      <tr><td>Port</td><td><code>{{ settings.port }}</code></td><td><code>CMDB_PORT</code></td></tr>
+      <tr><td>Stale after</td><td>{{ settings.stale_days }} days</td><td><code>CMDB_STALE_DAYS</code></td></tr>
+      <tr><td>Ansible inventory</td><td><code>{{ settings.ansible_inventory or 'from DB' }}</code></td><td><code>CMDB_ANSIBLE_INVENTORY</code></td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_empty_state.html" import empty_state %}
 {% block title %}Kubernetes HomeLabCMDB{% endblock %}
 {% block content %}
 <h1>Kubernetes topology</h1>
@@ -57,7 +58,10 @@
       </form>
     </div>
     {% else %}
-    <div class="card text-muted text-center" style="padding:2rem;">No clusters yet. Create one →</div>
+    {{ empty_state(
+         "No clusters yet",
+         "Create a cluster here, or run a K8s collection to discover one automatically.",
+         "Collect K8s", "/collect") }}
     {% endfor %}
   </div>
 

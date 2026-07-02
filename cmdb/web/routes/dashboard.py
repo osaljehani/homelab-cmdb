@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from cmdb.config import settings
 from cmdb.domain.models import Host, K8sCluster, Container, ImportLog
+from cmdb.domain.services.dashboard import (
+    fleet_freshness,
+    os_breakdown,
+    recent_changes,
+    vuln_trend,
+)
 from cmdb.domain.services.security import posture_summary
 from cmdb.domain.services.images import vuln_summary
 from cmdb.web.deps import templates, get_db_dep
@@ -13,30 +20,25 @@ router = APIRouter()
 @router.get("/")
 def dashboard(request: Request, db: Session = Depends(get_db_dep)):
     hosts = db.query(Host).order_by(Host.hostname).all()
-    host_count = len(hosts)
     cluster_count = db.query(func.count(K8sCluster.id)).scalar()
     container_count = db.query(func.count(Container.id)).scalar()
     last_import = db.query(ImportLog).order_by(ImportLog.imported_at.desc()).first()
-    security = posture_summary(hosts)
-    vulns = vuln_summary(db)
-
-    os_breakdown: dict[str, int] = {}
-    for family, count in (
-        db.query(Host.os_family, func.count(Host.id)).group_by(Host.os_family).all()
-    ):
-        os_breakdown[family or "Unknown"] = count
 
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "active": "dashboard",
-            "host_count": host_count,
+            "host_count": len(hosts),
             "cluster_count": cluster_count,
             "container_count": container_count,
             "last_import": last_import,
-            "os_breakdown": os_breakdown,
-            "security": security,
-            "vuln_summary": vulns,
+            "security": posture_summary(hosts),
+            "vuln_summary": vuln_summary(db),
+            "vuln_trend": vuln_trend(db),
+            "freshness": fleet_freshness(db, stale_days=settings.stale_days),
+            "changes": recent_changes(db),
+            "os_breakdown": os_breakdown(db),
+            "stale_days": settings.stale_days,
         },
     )

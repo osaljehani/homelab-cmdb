@@ -5,7 +5,8 @@ browse your infrastructure hosts, Docker containers, Kubernetes topology, Tailsc
 open ports through a web UI or the CLI.
 
 - **Backend:** FastAPI + SQLite (via SQLAlchemy / Alembic migrations)
-- **Frontend:** HTMX + Jinja2 templates, graphite terminal-style dark theme
+- **Frontend:** HTMX + Jinja2 templates, graphite terminal-style dark theme (light theme included).
+  All assets (fonts, htmx, cytoscape) are vendored the UI works fully offline
 - **CLI:** Typer
 - **Import sources:** Ansible `setup` facts, Docker (`docker ps`), Kubernetes (`kubectl`),
   Tailscale (`tailscale status`), listening ports (`ss`), **trivy image scans**
@@ -32,6 +33,15 @@ creating duplicates.
   browsable findings); flag expected-noisy images (e.g. a pentest arsenal) out of the rollup.
 - **Change history** every import snapshots a host's meaningful fields and records a per-host
   diff timeline (e.g. a kernel upgrade or IP change), skipping volatile values like uptime.
+- **Dashboard** severity breakdown with a 30-day vulnerability trend, security posture,
+  fleet freshness (stale-host detection via `CMDB_STALE_DAYS`, Tailscale online/offline), a
+  recent-changes feed and OS mix all as server-rendered SVG/CSS charts, no JS chart library.
+- **Topology visualizer** an interactive Cytoscape map of the whole lab: hosts with containers
+  nested by compose project, K8s clusters with member roles, subnets and the tailnet (exit nodes,
+  online state), exposure rings for listening ports and serve/funnel, and container→image edges
+  colored by scan severity. Layers (infra / network / exposure / images) toggle client-side.
+- **Global search** the nav search box finds hosts, containers and images by name, IP,
+  MagicDNS name or image ref, with live results.
 - **On-demand collection** pull facts, Docker, Kubernetes, Tailscale and port state live over
   SSH from the CMDB host (via Ansible), instead of running export scripts on each device. The
   Ansible inventory is generated from the database by default. See below.
@@ -267,6 +277,7 @@ just test                        # run the full suite via the justfile
 | `CMDB_HOST` | `0.0.0.0` | Bind address for the web server |
 | `CMDB_PORT` | `8080` | Port for the web server |
 | `CMDB_SECRET_KEY` | `change-me-in-production` | Session secret set to a random value in production |
+| `CMDB_STALE_DAYS` | `7` | Days without fresh facts before a host counts as stale on the dashboard |
 | `CMDB_ANSIBLE_INVENTORY` | _(unset)_ | Fixed Ansible inventory path; overrides DB generation when set |
 | `CMDB_ANSIBLE_USER` | _(unset)_ | SSH user injected into the generated inventory |
 | `CMDB_SSH_PRIVATE_KEY` | _(unset)_ | SSH private key path injected into the generated inventory |
@@ -280,14 +291,16 @@ just test                        # run the full suite via the justfile
 cmdb/
   cli/          CLI entry points (thin shell over domain)
   web/          FastAPI routes and Jinja2 templates (thin shell over domain)
+    static/     Vendored assets (fonts, htmx, cytoscape) refresh via scripts/vendor-assets.sh
   mcp/          MCP server exposing domain services as tools (thin shell over domain)
   domain/
     models.py   SQLAlchemy models (Host, Tag, Container, K8s*, TailscaleService, ListeningPort, …)
     services/   All business logic lives here (ansible, docker_import, k8s_import,
-                tailscale_import, ports_import, collect, generate, history, security)
+                tailscale_import, ports_import, collect, generate, history, security,
+                dashboard, topology, search)
   db/           Session + Alembic migrations
   config.py     Settings (CMDB_* environment variables)
-scripts/        Export helpers (docker-export.sh, k8s-export.sh)
+scripts/        Export helpers (docker-export.sh, k8s-export.sh), vendor-assets.sh
 tests/          pytest test suite
 docs/           Roadmap and additional docs
 data/           Database volume mount (Docker)

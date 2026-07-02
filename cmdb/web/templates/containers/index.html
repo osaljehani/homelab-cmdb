@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_empty_state.html" import empty_state %}
 {% block title %}Containers HomeLabCMDB{% endblock %}
 {% block content %}
 <h1>Containers</h1>
@@ -28,9 +29,9 @@
   </table>
 </div>
 {% else %}
-<div class="card text-muted text-center" style="padding:2rem;">
-  No containers yet. Import them from the <a href="/import" style="color:var(--accent);">Import</a> page
-  using <code>scripts/docker-export.sh</code>.
-</div>
+{{ empty_state(
+     "No containers yet",
+     "Upload a docker export on the Import page (scripts/docker-export.sh) or run an on-demand collection.",
+     "Go to Import", "/import") }}
 {% endfor %}
 {% endblock %}

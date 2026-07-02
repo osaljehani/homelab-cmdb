@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_empty_state.html" import empty_state %}
+{% block title %}Search HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Search</h1>
+<form action="/search" method="get" style="margin-bottom:1.5rem;">
+  <input type="search" name="gq" value="{{ gq }}" placeholder="Hosts, containers, images…" autofocus>
+</form>
+
+{% if hits %}
+{% for kind in ["host", "container", "image"] %}
+{% set kind_hits = hits | selectattr("kind", "equalto", kind) | list %}
+{% if kind_hits %}
+<div class="card">
+  <h2>{{ kind }}s</h2>
+  <table>
+    <tbody>
+      {% for hit in kind_hits %}
+      <tr class="row-link" onclick="location.href='{{ hit.url }}'">
+        <td><a href="{{ hit.url }}"><strong>{{ hit.label }}</strong></a></td>
+        <td class="text-muted">{{ hit.sublabel }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endfor %}
+{% else %}
+{{ empty_state(
+     "No matches" if gq.strip()|length >= 2 else "Type to search",
+     ("Nothing named like “" ~ gq ~ "” across hosts, containers or images.")
+       if gq.strip()|length >= 2 else "Find hosts, containers and images by name, IP or ref.") }}
+{% endif %}
+{% endblock %}
