@@ -1,74 +1,161 @@
 {% extends "base.html" %}
+{% from "charts/_macros.html" import sparkline, severity_bar, freshness_meter, hbar_row %}
+{% from "_empty_state.html" import empty_state %}
 {% block title %}Dashboard HomeLabCMDB{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
+
 <div class="stats-row">
-  <div class="stat-card">
+  <a class="stat-card" href="/hosts">
     <div class="value">{{ host_count }}</div>
     <div class="label">Hosts</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="/containers">
     <div class="value">{{ container_count }}</div>
     <div class="label">Containers</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="/k8s">
     <div class="value">{{ cluster_count }}</div>
     <div class="label">K8s Clusters</div>
-  </div>
-  <div class="stat-card">
-    <div class="value">{{ last_import.imported_at.strftime('%Y-%m-%d') if last_import else ' ' }}</div>
+  </a>
+  <a class="stat-card" href="/hosts">
+    <div class="value{% if freshness.stale %} value-warn{% endif %}">{{ freshness.stale }}</div>
+    <div class="label">Stale Hosts</div>
+  </a>
+  <a class="stat-card" href="/import">
+    <div class="value value-sm">{{ last_import.imported_at.strftime('%Y-%m-%d') if last_import else '–' }}</div>
     <div class="label">Last Import</div>
+  </a>
+</div>
+
+{% if host_count == 0 and vuln_summary.images == 0 %}
+{{ empty_state(
+     "Nothing inventoried yet",
+     "Import ansible facts or run an on-demand collection to light this page up.",
+     "Get started", "/import") }}
+{% else %}
+<div class="grid-2-1">
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <h2 style="margin:0;">Vulnerabilities</h2>
+        <a href="/images" class="btn btn-sm btn-secondary">View images</a>
+      </div>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.35rem;">
+        Latest scan per image · {{ vuln_summary.scanned_images }}/{{ vuln_summary.images }} images scanned · noisy excluded
+      </p>
+      {{ severity_bar(vuln_summary) }}
+      <div style="margin-top:1.25rem;">
+        {{ sparkline(vuln_trend) }}
+      </div>
+    </div>
+
+    {% if security and security.total %}
+    <div class="card">
+      <h2>Security posture</h2>
+      <p class="text-muted" style="margin-top:0;">
+        {{ security.hardened }}/{{ security.total }} hosts hardened (AppArmor or SELinux active)
+        · {{ security.fips_on }} with FIPS on
+      </p>
+      {% if security.exposed_hosts %}
+      <table>
+        <thead><tr><th>Exposed Host</th><th>Issue</th></tr></thead>
+        <tbody>
+          {% for h in security.exposed_hosts %}
+          {% set p = host_posture(h) %}
+          <tr class="row-link" onclick="location.href='/hosts/{{ h.hostname }}'">
+            <td><a href="/hosts/{{ h.hostname }}"><strong>{{ h.hostname }}</strong></a></td>
+            <td><span class="badge badge-red">{{ p.issues | join(', ') }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted">All hosts have an active MAC.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if os_breakdown %}
+    <div class="card">
+      <h2>OS breakdown</h2>
+      {% set maxcount = os_breakdown[0].count %}
+      {% for row in os_breakdown %}
+      {{ hbar_row(row.family, row.count, maxcount) }}
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
-</div>
 
-{% if security and security.total %}
-<div class="card">
-  <h2>Security posture</h2>
-  <p class="text-muted" style="margin-top:0;">
-    {{ security.hardened }}/{{ security.total }} hosts hardened (AppArmor or SELinux active)
-    · {{ security.fips_on }} with FIPS on
-  </p>
-  {% if security.exposed_hosts %}
-  <table>
-    <thead><tr><th>Exposed Host</th><th>Issue</th></tr></thead>
-    <tbody>
-      {% for h in security.exposed_hosts %}
-      {% set p = host_posture(h) %}
-      <tr style="cursor:pointer" onclick="location.href='/hosts/{{ h.hostname }}'">
-        <td><strong>{{ h.hostname }}</strong></td>
-        <td><span class="badge badge-red">{{ p.issues | join(', ') }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="text-muted">All hosts have an active MAC.</p>
-  {% endif %}
-</div>
-{% endif %}
+  <div>
+    <div class="card">
+      <h2>Fleet freshness</h2>
+      <p class="text-muted" style="font-size:.85rem;margin-top:0;">
+        Stale = no facts for {{ stale_days }}+ days
+      </p>
+      {{ freshness_meter(freshness) }}
+      {% if freshness.ts_online + freshness.ts_offline %}
+      <p class="text-muted" style="font-size:.85rem;margin:1rem 0 0;">
+        Tailscale: <b>{{ freshness.ts_online }}</b> online ·
+        <b>{{ freshness.ts_offline }}</b> offline ·
+        {{ freshness.ts_absent }} not enrolled
+      </p>
+      {% endif %}
+      {% if freshness.stale_hosts %}
+      <table style="margin-top:1rem;">
+        <thead><tr><th>Stale Host</th><th>Last Seen</th></tr></thead>
+        <tbody>
+          {% for h in freshness.stale_hosts %}
+          <tr class="row-link" onclick="location.href='/hosts/{{ h.hostname }}'">
+            <td><a href="/hosts/{{ h.hostname }}"><strong>{{ h.hostname }}</strong></a></td>
+            <td class="text-muted">{{ h.last_seen.strftime('%Y-%m-%d') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
 
-<div class="card">
-  <h2>Vulnerabilities</h2>
-  <p class="text-muted" style="font-size:.85rem;">Latest scan per image, excluding noisy images.</p>
-  <p>
-    <strong>{{ vuln_summary.critical }}</strong> critical,
-    <strong>{{ vuln_summary.high }}</strong> high
-    across {{ vuln_summary.scanned_images }} / {{ vuln_summary.images }} images.
-  </p>
-  <a href="/images" class="btn">View images</a>
-</div>
-
-{% if os_breakdown %}
-<div class="card">
-  <h2>OS breakdown</h2>
-  <table>
-    <thead><tr><th>OS Family</th><th>Count</th></tr></thead>
-    <tbody>
-      {% for family, count in os_breakdown.items() %}
-      <tr><td>{{ family }}</td><td>{{ count }}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <div class="card">
+      <h2>Recent changes</h2>
+      {% if changes %}
+      <ul class="timeline">
+        {% for e in changes %}
+        <li class="timeline-item">
+          <div class="timeline-date">{{ e.at.strftime('%Y-%m-%d %H:%M') }}</div>
+          {% if e.kind == "snapshot" %}
+            {% if e.initial %}
+            <div style="font-size:.85rem;"><a href="/hosts/{{ e.hostname }}"><strong>{{ e.hostname }}</strong></a> <span class="text-muted">first seen</span></div>
+            {% else %}
+            <div style="font-size:.85rem;"><a href="/hosts/{{ e.hostname }}"><strong>{{ e.hostname }}</strong></a></div>
+            {% for field, old, new in e.changes[:4] %}
+            <div class="diff-row">
+              <span class="diff-field">{{ field }}</span>:
+              <span class="diff-old">{{ old if old is not none else '∅' }}</span>
+              →
+              <span class="diff-new">{{ new if new is not none else '∅' }}</span>
+            </div>
+            {% endfor %}
+            {% if e.changes | length > 4 %}
+            <div class="text-muted" style="font-size:.75rem;">+{{ e.changes | length - 4 }} more…</div>
+            {% endif %}
+            {% endif %}
+          {% else %}
+            <div style="font-size:.85rem;">
+              <span class="badge">{{ e.source }} import</span>
+              <span class="text-muted" style="font-size:.8rem;">
+                {% for key, value in e.counts.items() %}{{ value }} {{ key | replace('_upserted', '') | replace('_', ' ') }}{% if not loop.last %} · {% endif %}{% endfor %}
+              </span>
+            </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-muted" style="font-size:.85rem;">No changes recorded yet.</p>
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% endif %}
 {% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Topology HomeLabCMDB{% endblock %}
+{% block head %}
+<script src="/static/js/cytoscape.min.js" defer></script>
+<script src="/static/js/layout-base.js" defer></script>
+<script src="/static/js/cose-base.js" defer></script>
+<script src="/static/js/cytoscape-fcose.js" defer></script>
+<script src="/static/js/topology.js?v={{ asset_version }}" defer></script>
+{% endblock %}
+{% block content %}
+<h1>Topology</h1>
+
+<div class="topology-toolbar">
+  <div class="layer-toggles">
+    <label><input type="checkbox" data-layer="layer-infra" checked> Infra</label>
+    <label><input type="checkbox" data-layer="layer-network" checked> Network</label>
+    <label><input type="checkbox" data-layer="layer-exposure" checked> Exposure</label>
+    <label><input type="checkbox" data-layer="layer-images"> Images &amp; vulns</label>
+  </div>
+  <button type="button" class="btn btn-sm btn-secondary" id="relayout">Re-layout</button>
+</div>
+
+<div class="topology-wrap">
+  <div id="cy" data-endpoint="/topology/data"></div>
+  <aside class="topology-panel" id="topology-panel" hidden>
+    <div class="panel-head">
+      <h2 id="panel-title" style="margin:0;"></h2>
+      <button type="button" class="panel-close" id="panel-close" aria-label="Close">×</button>
+    </div>
+    <div id="panel-body"></div>
+    <a id="panel-open" class="btn btn-sm" href="#" hidden>Open →</a>
+  </aside>
+</div>
+
+<div class="legend">
+  <span class="legend-item"><i class="legend-dot legend-host"></i>host</span>
+  <span class="legend-item"><i class="legend-dot legend-k8s"></i>k8s cluster</span>
+  <span class="legend-item"><i class="legend-dot legend-container"></i>container</span>
+  <span class="legend-item"><i class="legend-dot legend-subnet"></i>subnet / tailnet</span>
+  <span class="legend-item"><i class="legend-dot sev-critical"></i>critical image</span>
+  <span class="legend-item"><i class="legend-dot legend-exposed"></i>exposed (ring)</span>
+</div>
+{% endblock %}

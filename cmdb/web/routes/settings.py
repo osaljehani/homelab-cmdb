@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Request
+
+from cmdb.config import settings
 from cmdb.web.deps import templates
 
 router = APIRouter()
@@ -6,10 +8,8 @@ router = APIRouter()
 
 @router.get("/")
 def settings_page(request: Request):
-    return templates.TemplateResponse(request, "dashboard.html", {
-        "active": "settings",
-        "host_count": 0,
-        "cluster_count": 0,
-        "last_import": None,
-        "os_breakdown": {},
-    })
+    return templates.TemplateResponse(
+        request,
+        "settings/index.html",
+        {"active": "settings", "settings": settings},
+    )

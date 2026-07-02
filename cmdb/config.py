@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     port: int = 8080
     secret_key: str = "change-me-in-production"
 
+    # A host whose facts are at least this old counts as stale on the dashboard.
+    stale_days: int = 7
+
     # On-demand collection (agentless, via the `ansible` binary over SSH).
     # SSH user / key may also be set as inventory vars; these are convenience overrides.
     ansible_inventory: str | None = None

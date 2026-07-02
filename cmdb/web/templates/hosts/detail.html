@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "_breadcrumbs.html" import breadcrumbs %}
 {% block title %}{{ host.hostname }} HomeLabCMDB{% endblock %}
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
   <div>
-    <a href="/hosts" style="color:var(--text-muted);font-size:.9rem;">← Hosts</a>
+    {{ breadcrumbs([("Hosts", "/hosts"), (host.hostname, none)]) }}
     <h1 style="margin:.25rem 0 0;">{{ host.hostname }}</h1>
   </div>
   <form action="/collect/run" method="post" title="Re-collect this host over SSH">
