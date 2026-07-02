@@ -489,6 +489,13 @@ a.stat-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ri
   letter-spacing: -.02em;
 }
 
+/* Non-numeric stat values (dates) stay on one line at a calmer size. */
+.stat-card .value-sm {
+  font-size: 1.15rem;
+  line-height: 2.1;
+  white-space: nowrap;
+}
+
 .stat-card .label {
   font-size: .8rem;
   font-weight: 400;
