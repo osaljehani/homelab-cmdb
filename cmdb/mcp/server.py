@@ -328,6 +328,31 @@ def set_image_noisy(ref: str, noisy: bool) -> ImageSummaryOut:
         return _image_summary(session, image)
 
 
+@mcp.tool()
+def delete_image(ref: str, confirm: bool = False) -> dict:
+    """Delete a container image and its ENTIRE scan history (scans + vulnerabilities).
+
+    DESTRUCTIVE and irreversible. You MUST get the user's explicit confirmation
+    before deleting: called with confirm=False (the default) this deletes nothing
+    and returns a refusal. Only after the user confirms, call again with
+    confirm=True. Use to clear a decommissioned image that no longer runs
+    (the scanner will re-add it if the container comes back). Raises if not found.
+    """
+    if not confirm:
+        return {
+            "deleted": False,
+            "ref": ref,
+            "message": (
+                f"Refused: deleting '{ref}' removes its entire scan history and cannot "
+                "be undone. Confirm with the user, then call again with confirm=True."
+            ),
+        }
+    with get_session() as session:
+        result = images_svc.delete_image(session, ref)
+        session.flush()
+        return {"deleted": True, **result}
+
+
 def serve() -> None:
     """Run pending DB migrations, then serve over stdio.
 

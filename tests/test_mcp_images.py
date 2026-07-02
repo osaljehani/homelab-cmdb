@@ -58,3 +58,39 @@ def test_image_tools(seeded, monkeypatch):
     assert out.expected_noisy is True
     # Now excluded from the rollup.
     assert server.vuln_summary().scanned_images == 0
+
+
+def test_delete_image_requires_confirmation(seeded, monkeypatch):
+    from contextlib import contextmanager
+    import cmdb.mcp.server as server
+
+    @contextmanager
+    def _fake_session():
+        yield seeded
+
+    monkeypatch.setattr(server, "get_session", _fake_session)
+
+    # Without confirm=True it must delete nothing.
+    res = server.delete_image("nginx:latest")
+    assert res["deleted"] is False
+    assert server.image_vulnerabilities("nginx:latest").ref == "nginx:latest"
+
+    # With confirm=True it deletes the image + its scan history.
+    res = server.delete_image("nginx:latest", confirm=True)
+    assert res["deleted"] is True
+    assert res["scans"] == 1 and res["vulnerabilities"] == 1
+    with pytest.raises(ValueError, match="not found"):
+        server.image_vulnerabilities("nginx:latest")
+
+
+def test_delete_image_missing_raises_when_confirmed(seeded, monkeypatch):
+    from contextlib import contextmanager
+    import cmdb.mcp.server as server
+
+    @contextmanager
+    def _fake_session():
+        yield seeded
+
+    monkeypatch.setattr(server, "get_session", _fake_session)
+    with pytest.raises(ValueError, match="not found"):
+        server.delete_image("ghost:1", confirm=True)
