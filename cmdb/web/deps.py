@@ -1,7 +1,6 @@
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Generator
-from fastapi import Depends
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
