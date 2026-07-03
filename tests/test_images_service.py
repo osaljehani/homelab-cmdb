@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from cmdb.domain.models import Image, ImageScan, Vulnerability
+from cmdb.domain.models import Container, Host, Image, ImageScan, Vulnerability
 from cmdb.domain.services import images as images_svc
 
 
@@ -107,6 +107,57 @@ def test_is_stale_false_for_never_scanned_image(db: Session):
 def test_is_stale_false_when_no_scans_anywhere(db: Session):
     lone = _scanned(db, "solo:1", datetime(2026, 7, 1))
     assert images_svc.is_stale(lone, images_svc.newest_scan_time(db)) is False
+
+
+def _host(db, machine_id, hostname):
+    h = Host(machine_id=machine_id, hostname=hostname)
+    db.add(h)
+    db.flush()
+    return h
+
+
+def _container(db, host, name, image):
+    db.add(Container(host_id=host.id, name=name, image=image))
+    db.flush()
+
+
+def _scan_with_source(db, img, source, when=datetime(2026, 7, 3)):
+    db.add(ImageScan(image_id=img.id, scanned_at=when, source=source, total=0))
+    img.last_scanned_at = when
+    db.flush()
+
+
+def test_deployments_docker_match_returns_host_and_container(db: Session):
+    host = _host(db, "m1", "testhost")
+    img = _img(db, "gitea/gitea:latest")
+    _scan_with_source(db, img, "docker")
+    _container(db, host, "gitea", "gitea/gitea:latest")
+    dep = images_svc.deployments(db, img)
+    assert dep["docker"] == [{"host": "testhost", "name": "gitea"}]
+    assert dep["source"] == "docker"
+
+
+def test_deployments_kubernetes_image_has_no_docker_but_source_tag(db: Session):
+    img = _img(db, "portfolio:0.0.1")
+    _scan_with_source(db, img, "kubernetes")
+    dep = images_svc.deployments(db, img)
+    assert dep["docker"] == []
+    assert dep["source"] == "kubernetes"
+
+
+def test_deployments_multiple_containers_same_image(db: Session):
+    host = _host(db, "m1", "testhost")
+    img = _img(db, "redis:7")
+    _scan_with_source(db, img, "docker")
+    _container(db, host, "redis-a", "redis:7")
+    _container(db, host, "redis-b", "redis:7")
+    dep = images_svc.deployments(db, img)
+    assert {p["name"] for p in dep["docker"]} == {"redis-a", "redis-b"}
+
+
+def test_deployments_unscanned_image_has_no_source(db: Session):
+    img = _img(db, "unscanned:1")
+    assert images_svc.deployments(db, img) == {"docker": [], "source": None}
 
 
 def test_vuln_summary_excludes_noisy_and_uses_latest(db: Session):

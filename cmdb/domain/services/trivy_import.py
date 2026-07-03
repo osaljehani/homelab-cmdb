@@ -15,6 +15,25 @@ from cmdb.domain.models import (
 
 _SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"}
 
+# trivy_version values emitted by registry (zot) scans; runtime Docker scans use
+# an actual trivy release string (e.g. "0.72.0").
+_REGISTRY_TRIVY_VERSIONS = {"zot-embedded", "registry-embedded"}
+
+
+def _derive_source(host: Any, trivy_version: Any) -> str:
+    """Classify a scan run as "docker" or "kubernetes" from its envelope.
+
+    The zot registry scan covers containerd/k8s-pulled images (host
+    ``zot-registry``, trivy_version ``zot-embedded``); the runtime scan covers
+    the Docker daemon. Defaults to "docker" when nothing signals otherwise.
+    """
+    if trivy_version in _REGISTRY_TRIVY_VERSIONS:
+        return "kubernetes"
+    host_str = str(host or "").lower()
+    if host_str == "zot-registry" or "zot" in host_str or "registry" in host_str:
+        return "kubernetes"
+    return "docker"
+
 
 def _parse_ts(value: Any) -> datetime:
     """Parse an ISO-8601 timestamp (accepting a trailing 'Z') to naive UTC."""
@@ -34,6 +53,7 @@ def _ingest_report(
     report: dict[str, Any],
     scanned_at: datetime,
     trivy_version: str | None,
+    source: str | None,
     import_log_id: int | None,
 ) -> int:
     """Ingest one trivy `image --format json` report. Returns the vuln count."""
@@ -57,6 +77,7 @@ def _ingest_report(
         image_id=image.id,
         scanned_at=scanned_at,
         trivy_version=trivy_version,
+        source=source,
         import_log_id=import_log_id,
     )
     session.add(scan)
@@ -104,6 +125,11 @@ def import_scan_run(
 
     scanned_at = _parse_ts(envelope.get("scanned_at"))
     trivy_version = envelope.get("trivy_version")
+    # Prefer an explicit envelope "source" if the scanner declares one; otherwise
+    # derive docker-vs-kubernetes from the host label / trivy_version.
+    source = envelope.get("source") or _derive_source(
+        envelope.get("host"), trivy_version
+    )
 
     imgs = 0
     vulns = 0
@@ -111,7 +137,7 @@ def import_scan_run(
     for i, report in enumerate(images):
         try:
             vulns += _ingest_report(
-                session, report, scanned_at, trivy_version, import_log_id
+                session, report, scanned_at, trivy_version, source, import_log_id
             )
             imgs += 1
         except Exception as exc:  # noqa: BLE001 - collected, non-fatal

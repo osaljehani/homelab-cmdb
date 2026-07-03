@@ -379,6 +379,12 @@ td strong { color: var(--text-main); font-weight: 600; }
   border-color: color-mix(in srgb, var(--status-critical) 45%, transparent);
 }
 
+/* Deployment / location badges (where an image runs) */
+.badge-loc {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 /* ── Forms ── */
 input[type=search],
 input[type=text],

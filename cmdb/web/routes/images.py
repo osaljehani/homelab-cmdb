@@ -24,6 +24,7 @@ def images_page(
                 "image": image,
                 "scan": images_svc.latest_scan(db, image),
                 "stale": images_svc.is_stale(image, newest),
+                "deployments": images_svc.deployments(db, image),
             }
         )
     # Non-noisy first, then by descending latest-critical count.
@@ -63,6 +64,7 @@ def image_detail(ref: str, request: Request, db: Session = Depends(get_db_dep)):
             "latest": latest,
             "scans": image.scans,  # already ordered scanned_at desc
             "stale": images_svc.is_stale(image, newest),
+            "deployments": images_svc.deployments(db, image),
             "vuln_count": vuln_count,
         },
     )
