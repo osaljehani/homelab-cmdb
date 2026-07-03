@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_empty_state.html" import empty_state %}
+{% from "_deployments.html" import deployment_badges %}
 {% block title %}Images HomeLabCMDB{% endblock %}
 {% block content %}
 <h1>Image Vulnerabilities</h1>
@@ -19,7 +20,7 @@
 <div class="card">
   <table>
     <thead>
-      <tr><th>Image</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Total</th><th>Last scan</th><th></th></tr>
+      <tr><th>Image</th><th>Deployed</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Total</th><th>Last scan</th><th></th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
@@ -27,6 +28,7 @@
         <td><a href="/images/{{ row.image.ref }}">{{ row.image.ref }}</a>
             {% if row.image.expected_noisy %}<span class="badge">noisy</span>{% endif %}
             {% if row.stale %}<span class="badge" title="Not seen in the most recent scan run">stale</span>{% endif %}</td>
+        <td>{{ deployment_badges(row.deployments) }}</td>
         {% if row.scan %}
         <td>{{ row.scan.critical }}</td><td>{{ row.scan.high }}</td>
         <td>{{ row.scan.medium }}</td><td>{{ row.scan.low }}</td><td>{{ row.scan.total }}</td>

@@ -130,6 +130,43 @@ def test_deleted_notice_renders_on_list(db):
         app.dependency_overrides.clear()
 
 
+def _zot_envelope(ref):
+    """A registry (zot) scan-run envelope -> classified as kubernetes source."""
+    return {
+        "host": "zot-registry", "scanned_at": "2026-07-02T04:30:00Z",
+        "trivy_version": "zot-embedded",
+        "images": [{
+            "ArtifactName": ref, "Metadata": {"ImageID": "sha256:x"},
+            "Results": [{"Target": ref, "Vulnerabilities": []}],
+        }],
+    }
+
+
+def test_deployed_column_shows_docker_placement_and_k8s_tag(db):
+    from cmdb.domain.models import Container, Host
+
+    client = _client(db)
+    try:
+        # A Docker-scanned image that also has a collected container on blade-14.
+        _upload(client, _envelope_at("2026-07-01T04:00:00Z", ["gitea/gitea:latest"]))
+        host = Host(machine_id="m1", hostname="blade-14")
+        db.add(host)
+        db.flush()
+        db.add(Container(host_id=host.id, name="gitea", image="gitea/gitea:latest"))
+        # A registry (k8s) image with no matching container.
+        _upload(client, _zot_envelope("portfolio:0.0.1"))
+        db.flush()
+
+        r = client.get("/images/")
+        assert r.status_code == 200
+        gitea_row = r.text.split("gitea/gitea:latest", 1)[1].split("</tr>", 1)[0]
+        assert "blade-14 / gitea" in gitea_row
+        portfolio_row = r.text.split("portfolio:0.0.1", 1)[1].split("</tr>", 1)[0]
+        assert "k8s (via registry)" in portfolio_row
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_stale_badge_marks_dropped_image_only(db):
     client = _client(db)
     try:
