@@ -28,15 +28,24 @@ def _img(db, ref, noisy=False, scans=()):
 def test_list_images_excludes_noisy_when_requested(db: Session):
     _img(db, "nginx:latest")
     _img(db, "hexstrike:latest", noisy=True)
-    assert {i.ref for i in images_svc.list_images(db)} == {"nginx:latest", "hexstrike:latest"}
-    assert {i.ref for i in images_svc.list_images(db, include_noisy=False)} == {"nginx:latest"}
+    assert {i.ref for i in images_svc.list_images(db)} == {
+        "nginx:latest",
+        "hexstrike:latest",
+    }
+    assert {i.ref for i in images_svc.list_images(db, include_noisy=False)} == {
+        "nginx:latest"
+    }
 
 
 def test_latest_scan_picks_most_recent(db: Session):
-    img = _img(db, "nginx:latest", scans=[
-        (datetime(2026, 7, 1), 1, 0),
-        (datetime(2026, 7, 3), 5, 2),
-    ])
+    img = _img(
+        db,
+        "nginx:latest",
+        scans=[
+            (datetime(2026, 7, 1), 1, 0),
+            (datetime(2026, 7, 3), 5, 2),
+        ],
+    )
     latest = images_svc.latest_scan(db, img)
     assert latest.scanned_at == datetime(2026, 7, 3)
     assert latest.critical == 5
@@ -51,7 +60,9 @@ def test_set_noisy_toggles_and_raises_on_missing(db: Session):
 
 
 def test_delete_image_removes_image_and_scan_history(db: Session):
-    img = _img(db, "gone:1", scans=[(datetime(2026, 7, 1), 1, 1), (datetime(2026, 7, 3), 2, 3)])
+    img = _img(
+        db, "gone:1", scans=[(datetime(2026, 7, 1), 1, 1), (datetime(2026, 7, 3), 2, 3)]
+    )
     db.add(Vulnerability(scan_id=img.scans[0].id, vuln_id="CVE-1", severity="HIGH"))
     db.flush()
 
@@ -160,11 +171,26 @@ def test_deployments_unscanned_image_has_no_source(db: Session):
     assert images_svc.deployments(db, img) == {"docker": [], "source": None}
 
 
+def test_deployments_matches_tagless_container_to_latest_image(db: Session):
+    host = _host(db, "m1", "blade-14")
+    img = _img(db, "homelabcmdb-cmdb:latest")  # canonical Image.ref
+    _scan_with_source(db, img, "docker")
+    _container(
+        db, host, "homelabcmdb-cmdb-1", "homelabcmdb-cmdb"
+    )  # docker ps is tagless
+    dep = images_svc.deployments(db, img)
+    assert dep["docker"] == [{"host": "blade-14", "name": "homelabcmdb-cmdb-1"}]
+
+
 def test_vuln_summary_excludes_noisy_and_uses_latest(db: Session):
-    _img(db, "nginx:latest", scans=[(datetime(2026, 7, 1), 1, 1), (datetime(2026, 7, 3), 2, 3)])
+    _img(
+        db,
+        "nginx:latest",
+        scans=[(datetime(2026, 7, 1), 1, 1), (datetime(2026, 7, 3), 2, 3)],
+    )
     _img(db, "hexstrike:latest", noisy=True, scans=[(datetime(2026, 7, 3), 99, 99)])
     _img(db, "unscanned:1")  # no scans
     s = images_svc.vuln_summary(db)
-    assert s["images"] == 2          # non-noisy images
+    assert s["images"] == 2  # non-noisy images
     assert s["scanned_images"] == 1  # only nginx has a scan
     assert s["critical"] == 2 and s["high"] == 3 and s["total"] == 5
