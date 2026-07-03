@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Container, Image, ImageScan
+from cmdb.domain.refs import canonical_ref
 
 
 def newest_scan_time(session: Session) -> datetime | None:
@@ -44,17 +45,22 @@ def latest_scan(session: Session, image: Image) -> ImageScan | None:
 def deployments(session: Session, image: Image) -> dict:
     """Where an image is deployed.
 
-    Docker placements are resolved by exact ref match against collected
-    containers -- the same ``docker ps`` ``.Image`` string feeds both the
-    container collector and the runtime trivy scan, so ``Container.image`` and
-    ``Image.ref`` are the same string (the join already relied on in
-    ``topology.py``). Kubernetes images are not yet mapped to a
-    cluster/namespace, so we fall back to the latest scan's ``source`` as a
+    Docker placements are resolved by canonical-ref match against collected
+    containers: ``Image.ref`` is already canonical (from ingest/migration), so
+    we canonicalize each container's raw ``docker ps`` ``.Image`` string and
+    compare, making the join tolerant of registry-host/``library/``/tag
+    differences (e.g. a ``homelabcmdb-cmdb`` container vs a
+    ``homelabcmdb-cmdb:latest`` image). Kubernetes images are not yet mapped to
+    a cluster/namespace, so we fall back to the latest scan's ``source`` as a
     generic runtime tag.
 
     Returns ``{"docker": [{"host", "name"}, ...], "source": <str|None>}``.
     """
-    containers = session.query(Container).filter(Container.image == image.ref).all()
+    containers = [
+        c
+        for c in session.query(Container).all()
+        if c.image and canonical_ref(c.image) == image.ref
+    ]
     docker = [
         {"host": c.host.hostname if c.host else None, "name": c.name}
         for c in containers
