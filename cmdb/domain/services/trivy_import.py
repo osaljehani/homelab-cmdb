@@ -12,6 +12,7 @@ from cmdb.domain.models import (
     ImportSource,
     Vulnerability,
 )
+from cmdb.domain.refs import canonical_ref
 
 _SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"}
 
@@ -60,6 +61,7 @@ def _ingest_report(
     ref = report.get("ArtifactName")
     if not ref:
         raise ValueError("report missing 'ArtifactName'")
+    ref = canonical_ref(ref)
 
     metadata = report.get("Metadata") or {}
     digests = metadata.get("RepoDigests") or []
