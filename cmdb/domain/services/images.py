@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from cmdb.domain.models import Image, ImageScan
+from cmdb.domain.models import Container, Image, ImageScan
 
 
 def newest_scan_time(session: Session) -> datetime | None:
@@ -39,6 +39,28 @@ def latest_scan(session: Session, image: Image) -> ImageScan | None:
         .order_by(ImageScan.scanned_at.desc())
         .first()
     )
+
+
+def deployments(session: Session, image: Image) -> dict:
+    """Where an image is deployed.
+
+    Docker placements are resolved by exact ref match against collected
+    containers -- the same ``docker ps`` ``.Image`` string feeds both the
+    container collector and the runtime trivy scan, so ``Container.image`` and
+    ``Image.ref`` are the same string (the join already relied on in
+    ``topology.py``). Kubernetes images are not yet mapped to a
+    cluster/namespace, so we fall back to the latest scan's ``source`` as a
+    generic runtime tag.
+
+    Returns ``{"docker": [{"host", "name"}, ...], "source": <str|None>}``.
+    """
+    containers = session.query(Container).filter(Container.image == image.ref).all()
+    docker = [
+        {"host": c.host.hostname if c.host else None, "name": c.name}
+        for c in containers
+    ]
+    scan = latest_scan(session, image)
+    return {"docker": docker, "source": scan.source if scan else None}
 
 
 def set_noisy(session: Session, ref: str, value: bool) -> Image:

@@ -149,6 +149,10 @@ class ImageScan(Base):
     image_id = Column(Integer, ForeignKey("images.id"), nullable=False)
     scanned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     trivy_version = Column(String)
+    # Runtime this scan came from: "docker" (runtime daemon scan) or "kubernetes"
+    # (zot registry scan of containerd-pulled images). Derived from the scan
+    # envelope on import; nullable for rows imported before this column existed.
+    source = Column(String)
     import_log_id = Column(Integer, ForeignKey("import_logs.id"), nullable=True)
     critical = Column(Integer, default=0)
     high = Column(Integer, default=0)
