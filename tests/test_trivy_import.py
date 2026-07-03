@@ -190,3 +190,29 @@ def test_import_from_path_bad_report_non_fatal(db: Session, tmp_path):
     log = import_from_path(db, str(f), ImportSource.CLI)
     assert log.images_scanned == 1  # the good one
     assert log.notes is not None and "image[0]" in log.notes
+
+
+def test_runtime_and_registry_refs_dedup_to_one_image(db: Session):
+    # runtime scan spells it short; Zot scan keeps the library/ prefix
+    import_scan_run(
+        db,
+        {
+            "host": "dev-workstation",
+            "scanned_at": "2026-07-01T04:00:00Z",
+            "trivy_version": "0.72.0",
+            "images": [_report("memcached:1.6.29-alpine", [])],
+        },
+    )
+    import_scan_run(
+        db,
+        {
+            "host": "zot-registry",
+            "scanned_at": "2026-07-01T04:30:00Z",
+            "trivy_version": "zot-embedded",
+            "images": [_report("library/memcached:1.6.29-alpine", [])],
+        },
+    )
+    imgs = db.query(Image).filter(Image.ref == "memcached:1.6.29-alpine").all()
+    assert len(imgs) == 1  # one canonical row, not two
+    assert db.query(Image).count() == 1
+    assert len(imgs[0].scans) == 2  # both source scans interleaved on it
