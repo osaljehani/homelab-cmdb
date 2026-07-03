@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_breadcrumbs.html" import breadcrumbs %}
+{% from "_deployments.html" import deployment_badges %}
 {% block title %}{{ image.ref }} HomeLabCMDB{% endblock %}
 {% block content %}
 {{ breadcrumbs([("Images", "/images"), (image.ref, none)]) }}
@@ -10,6 +11,7 @@
   Digest: {{ image.digest or 'unknown' }} &middot;
   Last scanned: {{ image.last_scanned_at.strftime('%Y-%m-%d %H:%M') if image.last_scanned_at else 'never' }}
 </p>
+<p style="font-size:.85rem;">Deployed: {{ deployment_badges(deployments) }}</p>
 
 <div class="card">
   <form action="/images/{{ image.ref }}/noisy" method="post">

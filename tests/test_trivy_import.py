@@ -5,7 +5,11 @@ import pytest
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Image, ImageScan, ImportSource
-from cmdb.domain.services.trivy_import import import_scan_run, import_from_path
+from cmdb.domain.services.trivy_import import (
+    _derive_source,
+    import_scan_run,
+    import_from_path,
+)
 
 
 def _report(ref, vulns, os_name="debian 12.4"):
@@ -130,6 +134,50 @@ def test_import_from_path_single_file(db: Session, tmp_path, envelope):
     assert log.vulnerabilities_upserted == 2
     assert log.source == ImportSource.CLI
     assert log.notes is None
+
+
+@pytest.mark.parametrize(
+    "host, trivy_version, expected",
+    [
+        ("omsaj-Blade-14", "0.72.0", "docker"),
+        ("testhost", "0.72.0", "docker"),
+        ("zot-registry", "zot-embedded", "kubernetes"),
+        ("some-registry", "registry-embedded", "kubernetes"),
+        (None, "0.72.0", "docker"),
+    ],
+)
+def test_derive_source(host, trivy_version, expected):
+    assert _derive_source(host, trivy_version) == expected
+
+
+def test_import_persists_docker_source(db: Session, envelope):
+    # envelope fixture: host=testhost, trivy_version=0.72.0 -> runtime Docker scan
+    import_scan_run(db, envelope)
+    scan = db.query(Image).filter_by(ref="nginx:latest").first().scans[0]
+    assert scan.source == "docker"
+
+
+def test_import_persists_kubernetes_source_from_zot(db: Session):
+    env = {
+        "host": "zot-registry",
+        "scanned_at": "2026-07-02T04:30:00Z",
+        "trivy_version": "zot-embedded",
+        "images": [_report("portfolio:0.0.1", [])],
+    }
+    import_scan_run(db, env)
+    assert db.query(ImageScan).one().source == "kubernetes"
+
+
+def test_explicit_envelope_source_overrides_derivation(db: Session):
+    env = {
+        "host": "omsaj-Blade-14",  # would derive "docker"
+        "source": "kubernetes",
+        "scanned_at": "2026-07-02T04:30:00Z",
+        "trivy_version": "0.72.0",
+        "images": [_report("x:1", [])],
+    }
+    import_scan_run(db, env)
+    assert db.query(ImageScan).one().source == "kubernetes"
 
 
 def test_import_from_path_bad_report_non_fatal(db: Session, tmp_path):
