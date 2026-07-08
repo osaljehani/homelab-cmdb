@@ -273,8 +273,16 @@ def import_ansible(path: str) -> dict:
 # --- Image vulnerabilities --------------------------------------------------
 
 
-def _image_summary(session, image) -> ImageSummaryOut:
-    scan = images_svc.latest_scan(session, image)
+def _running_on(row: dict) -> list[str]:
+    return [
+        f"{p['host'] or '?'}/{p['name']}" for p in row["deployments"]["docker"]
+    ]
+
+
+def _image_summary(session, image, row: dict | None = None) -> ImageSummaryOut:
+    if row is None:
+        row = images_svc.image_status(session, image)
+    scan = row["scan"]
     return ImageSummaryOut(
         ref=image.ref,
         expected_noisy=image.expected_noisy,
@@ -285,14 +293,21 @@ def _image_summary(session, image) -> ImageSummaryOut:
         medium=scan.medium if scan else 0,
         low=scan.low if scan else 0,
         total=scan.total if scan else 0,
+        stale=row["stale"],
+        deployment_status=row["status"],
+        running_on=_running_on(row),
     )
 
 
 @mcp.tool()
 def list_image_scans() -> list[ImageSummaryOut]:
-    """List scanned container images with their latest severity counts."""
+    """List scanned container images with their latest severity counts,
+    per-source staleness, and running/registry-only deployment status."""
     with get_session() as session:
-        return [_image_summary(session, img) for img in images_svc.list_images(session)]
+        return [
+            _image_summary(session, row["image"], row)
+            for row in images_svc.image_overview(session)
+        ]
 
 
 @mcp.tool()
@@ -302,12 +317,16 @@ def image_vulnerabilities(ref: str) -> ImageDetailOut:
         image = images_svc.get_image(session, ref)
         if image is None:
             raise ValueError(f"Image '{ref}' not found")
-        scan = images_svc.latest_scan(session, image)
+        row = images_svc.image_status(session, image)
+        scan = row["scan"]
         return ImageDetailOut(
             ref=image.ref,
             expected_noisy=image.expected_noisy,
             scanned_at=scan.scanned_at if scan else None,
             trivy_version=scan.trivy_version if scan else None,
+            stale=row["stale"],
+            deployment_status=row["status"],
+            running_on=_running_on(row),
             vulnerabilities=[v for v in (scan.vulnerabilities if scan else [])],
         )
 
