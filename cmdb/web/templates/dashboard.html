@@ -42,9 +42,16 @@
         <a href="/images" class="btn btn-sm btn-secondary">View images</a>
       </div>
       <p class="text-muted" style="font-size:.85rem;margin-top:.35rem;">
-        Latest scan per image · {{ vuln_summary.scanned_images }}/{{ vuln_summary.images }} images scanned · noisy excluded
+        Latest scan per image · noisy excluded
       </p>
-      {{ severity_bar(vuln_summary) }}
+      <p style="font-size:.85rem;margin:.75rem 0 .25rem;">
+        Running · {{ vuln_summary.running.scanned_images }}/{{ vuln_summary.running.images }} images scanned
+      </p>
+      {{ severity_bar(vuln_summary.running) }}
+      <p style="font-size:.85rem;margin:1rem 0 .25rem;">
+        Registry-only · {{ vuln_summary.registry_only.scanned_images }}/{{ vuln_summary.registry_only.images }} images scanned
+      </p>
+      {{ severity_bar(vuln_summary.registry_only) }}
       <div style="margin-top:1.25rem;">
         {{ sparkline(vuln_trend) }}
       </div>

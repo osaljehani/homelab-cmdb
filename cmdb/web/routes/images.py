@@ -12,34 +12,27 @@ router = APIRouter()
 def images_page(
     request: Request,
     db: Session = Depends(get_db_dep),
+    deployed: str | None = None,
     deleted: str | None = None,
     scans: int | None = None,
     vulns: int | None = None,
 ):
-    newest = images_svc.newest_scan_time(db)
-    rows = []
-    for image in images_svc.list_images(db):
-        rows.append(
-            {
-                "image": image,
-                "scan": images_svc.latest_scan(db, image),
-                "stale": images_svc.is_stale(image, newest),
-                "deployments": images_svc.deployments(db, image),
-            }
-        )
-    # Non-noisy first, then by descending latest-critical count.
-    rows.sort(
-        key=lambda r: (
-            r["image"].expected_noisy,
-            -(r["scan"].critical if r["scan"] else 0),
-        )
-    )
+    rows = images_svc.image_overview(db)
+    counts = {
+        "all": len(rows),
+        "running": sum(1 for r in rows if r["status"] == "running"),
+        "registry-only": sum(1 for r in rows if r["status"] == "registry-only"),
+    }
+    if deployed in ("running", "registry-only"):
+        rows = [r for r in rows if r["status"] == deployed]
     return templates.TemplateResponse(
         request,
         "images/list.html",
         {
             "active": "images",
             "rows": rows,
+            "deployed": deployed or "all",
+            "counts": counts,
             "deleted": deleted,
             "deleted_scans": scans,
             "deleted_vulns": vulns,
@@ -52,8 +45,7 @@ def image_detail(ref: str, request: Request, db: Session = Depends(get_db_dep)):
     image = images_svc.get_image(db, ref)
     if image is None:
         raise HTTPException(status_code=404, detail=f"Image '{ref}' not found")
-    latest = images_svc.latest_scan(db, image)
-    newest = images_svc.newest_scan_time(db)
+    status = images_svc.image_status(db, image)
     vuln_count = sum(len(scan.vulnerabilities) for scan in image.scans)
     return templates.TemplateResponse(
         request,
@@ -61,10 +53,10 @@ def image_detail(ref: str, request: Request, db: Session = Depends(get_db_dep)):
         {
             "active": "images",
             "image": image,
-            "latest": latest,
+            "latest": status["scan"],
             "scans": image.scans,  # already ordered scanned_at desc
-            "stale": images_svc.is_stale(image, newest),
-            "deployments": images_svc.deployments(db, image),
+            "stale": status["stale"],
+            "deployments": status["deployments"],
             "vuln_count": vuln_count,
         },
     )
