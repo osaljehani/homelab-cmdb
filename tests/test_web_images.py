@@ -162,7 +162,7 @@ def test_deployed_column_shows_docker_placement_and_k8s_tag(db):
         gitea_row = r.text.split("gitea/gitea:latest", 1)[1].split("</tr>", 1)[0]
         assert "testhost / gitea" in gitea_row
         portfolio_row = r.text.split("portfolio:0.0.1", 1)[1].split("</tr>", 1)[0]
-        assert "k8s (via registry)" in portfolio_row
+        assert "registry only" in portfolio_row
     finally:
         app.dependency_overrides.clear()
 
@@ -183,5 +183,69 @@ def test_stale_badge_marks_dropped_image_only(db):
         nginx_row = r.text.split("nginx:latest", 1)[1].split("</tr>", 1)[0]
         assert "stale" in old_row
         assert "stale" not in nginx_row
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_stale_badge_not_set_by_other_source_run(db):
+    client = _client(db)
+    try:
+        # Docker run at 07-01, then a NEWER registry (zot) run at 07-02 that
+        # naturally doesn't cover the docker-scanned image.
+        _upload(client, _envelope_at("2026-07-01T04:00:00Z", ["nginx:latest"]))
+        _upload(client, _zot_envelope("portfolio:0.0.1"))  # 2026-07-02
+
+        r = client.get("/images/")
+        assert r.status_code == 200
+        nginx_row = r.text.split("nginx:latest", 1)[1].split("</tr>", 1)[0]
+        assert "stale" not in nginx_row
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_images_tabs_filter_running_and_registry_only(db):
+    from cmdb.domain.models import Container, Host
+
+    client = _client(db)
+    try:
+        _upload(client, _envelope_at("2026-07-01T04:00:00Z", ["gitea/gitea:latest"]))
+        host = Host(machine_id="m1", hostname="testhost")
+        db.add(host)
+        db.flush()
+        db.add(
+            Container(
+                host_id=host.id,
+                name="gitea",
+                image="gitea/gitea:latest",
+                state="running",
+            )
+        )
+        _upload(client, _zot_envelope("portfolio:0.0.1"))
+        db.flush()
+
+        r = client.get("/images/?deployed=running")
+        assert r.status_code == 200
+        assert "gitea/gitea:latest" in r.text
+        assert "portfolio:0.0.1" not in r.text
+
+        r = client.get("/images/?deployed=registry-only")
+        assert r.status_code == 200
+        assert "portfolio:0.0.1" in r.text
+        assert "gitea/gitea:latest" not in r.text
+
+        r = client.get("/images/")
+        assert "gitea/gitea:latest" in r.text and "portfolio:0.0.1" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_dashboard_splits_running_and_registry_summary(db):
+    client = _client(db)
+    try:
+        _upload(client, _envelope())
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "Running" in r.text
+        assert "Registry-only" in r.text
     finally:
         app.dependency_overrides.clear()

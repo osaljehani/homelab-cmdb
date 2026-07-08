@@ -5,7 +5,7 @@
 {% block content %}
 {{ breadcrumbs([("Images", "/images"), (image.ref, none)]) }}
 <h1>{{ image.ref }}
-  {% if stale %}<span class="badge" title="Not seen in the most recent scan run">stale</span>{% endif %}
+  {% if stale %}<span class="badge" title="Missed the most recent scan run from every source that scans it">stale</span>{% endif %}
 </h1>
 <p class="text-muted" style="font-size:.85rem;">
   Digest: {{ image.digest or 'unknown' }} &middot;
@@ -24,10 +24,11 @@
 <div class="card">
   <h2>Scan history</h2>
   <table>
-    <thead><tr><th>Scanned</th><th>trivy</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Total</th></tr></thead>
+    <thead><tr><th>Scanned</th><th>Source</th><th>trivy</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Total</th></tr></thead>
     <tbody>
       {% for scan in scans %}
-      <tr><td>{{ scan.scanned_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ scan.trivy_version or '' }}</td>
+      <tr><td>{{ scan.scanned_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ scan.source or '—' }}</td><td>{{ scan.trivy_version or '' }}</td>
           <td>{{ scan.critical }}</td><td>{{ scan.high }}</td><td>{{ scan.medium }}</td>
           <td>{{ scan.low }}</td><td>{{ scan.total }}</td></tr>
       {% endfor %}

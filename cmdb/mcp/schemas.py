@@ -142,6 +142,9 @@ class ImageSummaryOut(_ORMModel):
     medium: int = 0
     low: int = 0
     total: int = 0
+    stale: bool = False
+    deployment_status: str | None = None  # "running" | "registry-only"
+    running_on: list[str] = []  # "host/container" placements
 
 
 class VulnerabilityOut(_ORMModel):
@@ -159,10 +162,13 @@ class ImageDetailOut(BaseModel):
     expected_noisy: bool = False
     scanned_at: datetime | None = None
     trivy_version: str | None = None
+    stale: bool = False
+    deployment_status: str | None = None  # "running" | "registry-only"
+    running_on: list[str] = []  # "host/container" placements
     vulnerabilities: list[VulnerabilityOut] = []
 
 
-class VulnSummaryOut(BaseModel):
+class VulnBucketOut(BaseModel):
     images: int = 0
     scanned_images: int = 0
     critical: int = 0
@@ -171,3 +177,8 @@ class VulnSummaryOut(BaseModel):
     low: int = 0
     unknown: int = 0
     total: int = 0
+
+
+class VulnSummaryOut(VulnBucketOut):
+    running: VulnBucketOut = VulnBucketOut()
+    registry_only: VulnBucketOut = VulnBucketOut()

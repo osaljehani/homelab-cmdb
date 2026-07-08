@@ -60,6 +60,40 @@ def test_image_tools(seeded, monkeypatch):
     assert server.vuln_summary().scanned_images == 0
 
 
+def test_image_tools_expose_stale_and_deployment_status(seeded, monkeypatch):
+    from contextlib import contextmanager
+    import cmdb.mcp.server as server
+    from cmdb.domain.models import Container, Host
+
+    @contextmanager
+    def _fake_session():
+        yield seeded
+
+    monkeypatch.setattr(server, "get_session", _fake_session)
+
+    host = Host(machine_id="m1", hostname="testhost")
+    seeded.add(host)
+    seeded.flush()
+    seeded.add(
+        Container(host_id=host.id, name="web", image="nginx:latest", state="running")
+    )
+    seeded.flush()
+
+    s = next(x for x in server.list_image_scans() if x.ref == "nginx:latest")
+    assert s.stale is False
+    assert s.deployment_status == "running"
+    assert s.running_on == ["testhost/web"]
+
+    detail = server.image_vulnerabilities("nginx:latest")
+    assert detail.stale is False
+    assert detail.deployment_status == "running"
+    assert detail.running_on == ["testhost/web"]
+
+    roll = server.vuln_summary()
+    assert roll.running.high == 1 and roll.running.scanned_images == 1
+    assert roll.registry_only.images == 0
+
+
 def test_delete_image_requires_confirmation(seeded, monkeypatch):
     from contextlib import contextmanager
     import cmdb.mcp.server as server

@@ -11,6 +11,14 @@
 </p>
 {% endif %}
 
+{% if counts['all'] %}
+<div class="tabs">
+  <a href="/images/" class="{{ 'active' if deployed == 'all' }}">All ({{ counts['all'] }})</a>
+  <a href="/images/?deployed=running" class="{{ 'active' if deployed == 'running' }}">Running ({{ counts['running'] }})</a>
+  <a href="/images/?deployed=registry-only" class="{{ 'active' if deployed == 'registry-only' }}">Registry-only ({{ counts['registry-only'] }})</a>
+</div>
+{% endif %}
+
 {% if not rows %}
 {{ empty_state(
      "No image scans yet",
@@ -20,14 +28,14 @@
 <div class="card">
   <table>
     <thead>
-      <tr><th>Image</th><th>Deployed</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Total</th><th>Last scan</th><th></th></tr>
+      <tr><th>Image</th><th>Status</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Total</th><th>Last scan</th><th></th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
       <tr {% if row.image.expected_noisy %}class="text-muted"{% endif %}>
         <td><a href="/images/{{ row.image.ref }}">{{ row.image.ref }}</a>
             {% if row.image.expected_noisy %}<span class="badge">noisy</span>{% endif %}
-            {% if row.stale %}<span class="badge" title="Not seen in the most recent scan run">stale</span>{% endif %}</td>
+            {% if row.stale %}<span class="badge" title="Missed the most recent scan run from every source that scans it">stale</span>{% endif %}</td>
         <td>{{ deployment_badges(row.deployments) }}</td>
         {% if row.scan %}
         <td>{{ row.scan.critical }}</td><td>{{ row.scan.high }}</td>

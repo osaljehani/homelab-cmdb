@@ -1,16 +1,18 @@
-{# Render where an image is deployed. `dep` is images_svc.deployments():
-   {"docker": [{"host", "name"}, ...], "source": "docker"|"kubernetes"|None}.
-   Docker placements resolve to a real host/container; k8s images fall back to a
-   generic runtime tag until per-cluster mapping lands. #}
+{# Render an image's deployment status. `dep` is images_svc.deployments():
+   {"docker": [{"host", "name"}, ...], "source": "docker"|"kubernetes"|None,
+    "status": "running"|"registry-only"}.
+   Docker placements resolve to a real host/container; anything without a
+   running container is registry-only (k8s images fall back to a generic
+   runtime tag until per-cluster mapping lands). #}
 {% macro deployment_badges(dep) %}
-  {%- if dep and dep.docker -%}
+  {%- if dep and dep.status == 'running' -%}
     {%- for p in dep.docker -%}
       <span class="badge badge-loc" title="Running as a Docker container on {{ p.host or 'unknown host' }}">{{ p.host or '?' }} / {{ p.name }}</span>
     {%- endfor -%}
   {%- elif dep and dep.source == 'kubernetes' -%}
-    <span class="badge badge-loc" title="Pulled through the zot registry by a Kubernetes/containerd node; cluster not yet mapped">k8s (via registry)</span>
+    <span class="badge" title="Only seen in the zot registry (pulled by a Kubernetes/containerd node); no running container matches">registry only</span>
   {%- elif dep and dep.source == 'docker' -%}
-    <span class="badge badge-loc" title="Scanned from the Docker daemon; no running container currently matches this ref">docker</span>
+    <span class="badge" title="Scanned from the Docker daemon; no running container currently matches this ref">docker (not running)</span>
   {%- else -%}
     <span class="text-muted">&mdash;</span>
   {%- endif -%}

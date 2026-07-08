@@ -7,19 +7,31 @@ from cmdb.domain.models import Container, Image, ImageScan
 from cmdb.domain.refs import canonical_ref
 
 
-def newest_scan_time(session: Session) -> datetime | None:
-    """Timestamp of the most recent scan run across all images (None if unscanned)."""
-    return session.query(func.max(ImageScan.scanned_at)).scalar()
+def source_watermarks(session: Session) -> dict[str | None, datetime]:
+    """Newest scan time per ``ImageScan.source`` (NULL source is its own bucket)."""
+    rows = (
+        session.query(ImageScan.source, func.max(ImageScan.scanned_at))
+        .group_by(ImageScan.source)
+        .all()
+    )
+    return dict(rows)
 
 
-def is_stale(image: Image, newest: datetime | None) -> bool:
-    """True when the image was not part of the newest scan run.
+def is_stale(
+    latest_by_source: dict[str | None, datetime],
+    watermarks: dict[str | None, datetime],
+) -> bool:
+    """True when the image missed the newest run of every source it's known to.
 
-    A never-scanned image (no ``last_scanned_at``) is "not scanned", not stale.
+    Staleness is per-source: a docker-scanned image is compared against the
+    newest docker run, not against a (possibly newer) registry run. An image
+    is current while at least one of its sources still includes it. A
+    never-scanned image (empty ``latest_by_source``) is "not scanned", not
+    stale.
     """
-    if newest is None or image.last_scanned_at is None:
+    if not latest_by_source:
         return False
-    return image.last_scanned_at < newest
+    return all(ts < watermarks.get(src, ts) for src, ts in latest_by_source.items())
 
 
 def list_images(session: Session, include_noisy: bool = True) -> list[Image]:
@@ -42,31 +54,126 @@ def latest_scan(session: Session, image: Image) -> ImageScan | None:
     )
 
 
-def deployments(session: Session, image: Image) -> dict:
+def _is_running(state: str | None) -> bool:
+    # None counts as running: pre-state-column imports lack it (same
+    # benefit-of-the-doubt convention as the containers page).
+    return state is None or state.lower() in ("running", "up")
+
+
+def container_placements(session: Session) -> dict[str, list[dict]]:
+    """Canonical image ref -> running-container placements, in one pass.
+
+    ``Image.ref`` is already canonical (from ingest/migration), so we
+    canonicalize each container's raw ``docker ps`` ``.Image`` string, making
+    the join tolerant of registry-host/``library/``/tag differences (e.g. a
+    ``homelabcmdb-cmdb`` container vs a ``homelabcmdb-cmdb:latest`` image).
+    """
+    placements: dict[str, list[dict]] = {}
+    for c in session.query(Container).all():
+        if not c.image or not _is_running(c.state):
+            continue
+        placements.setdefault(canonical_ref(c.image), []).append(
+            {"host": c.host.hostname if c.host else None, "name": c.name}
+        )
+    return placements
+
+
+def _deployment(image: Image, scan: ImageScan | None, placements: dict) -> dict:
+    docker = placements.get(image.ref, [])
+    return {
+        "docker": docker,
+        "source": scan.source if scan else None,
+        "status": "running" if docker else "registry-only",
+    }
+
+
+def deployments(
+    session: Session, image: Image, placements: dict | None = None
+) -> dict:
     """Where an image is deployed.
 
-    Docker placements are resolved by canonical-ref match against collected
-    containers: ``Image.ref`` is already canonical (from ingest/migration), so
-    we canonicalize each container's raw ``docker ps`` ``.Image`` string and
-    compare, making the join tolerant of registry-host/``library/``/tag
-    differences (e.g. a ``homelabcmdb-cmdb`` container vs a
-    ``homelabcmdb-cmdb:latest`` image). Kubernetes images are not yet mapped to
-    a cluster/namespace, so we fall back to the latest scan's ``source`` as a
-    generic runtime tag.
+    Docker placements come from :func:`container_placements` (running
+    containers only); pass a precomputed map when iterating many images.
+    Kubernetes images are not yet mapped to a cluster/namespace, so the latest
+    scan's ``source`` doubles as a generic runtime tag.
 
-    Returns ``{"docker": [{"host", "name"}, ...], "source": <str|None>}``.
+    Returns ``{"docker": [{"host", "name"}, ...], "source": <str|None>,
+    "status": "running"|"registry-only"}``.
     """
-    containers = [
-        c
-        for c in session.query(Container).all()
-        if c.image and canonical_ref(c.image) == image.ref
+    if placements is None:
+        placements = container_placements(session)
+    return _deployment(image, latest_scan(session, image), placements)
+
+
+def _overview_row(
+    image: Image,
+    scan: ImageScan | None,
+    latest_by_source: dict[str | None, datetime],
+    watermarks: dict[str | None, datetime],
+    placements: dict,
+) -> dict:
+    dep = _deployment(image, scan, placements)
+    return {
+        "image": image,
+        "scan": scan,
+        "stale": is_stale(latest_by_source, watermarks),
+        "status": dep["status"],
+        "deployments": dep,
+        "latest_by_source": latest_by_source,
+    }
+
+
+def image_overview(session: Session, include_noisy: bool = True) -> list[dict]:
+    """Batched per-image rows for list surfaces (web, CLI, MCP).
+
+    Four queries total regardless of image count: images, containers,
+    per-source watermarks, and one scan pass reduced in Python to the latest
+    scan per image plus the latest scan time per (image, source).
+
+    Rows are sorted noisy-last, then running-first, critical desc, ref.
+    """
+    placements = container_placements(session)
+    watermarks = source_watermarks(session)
+    latest_scan_by_image: dict[int, ImageScan] = {}
+    latest_by_image_source: dict[int, dict[str | None, datetime]] = {}
+    for scan in session.query(ImageScan).order_by(ImageScan.scanned_at).all():
+        latest_scan_by_image[scan.image_id] = scan
+        latest_by_image_source.setdefault(scan.image_id, {})[scan.source] = (
+            scan.scanned_at
+        )
+    rows = [
+        _overview_row(
+            image,
+            latest_scan_by_image.get(image.id),
+            latest_by_image_source.get(image.id, {}),
+            watermarks,
+            placements,
+        )
+        for image in list_images(session, include_noisy=include_noisy)
     ]
-    docker = [
-        {"host": c.host.hostname if c.host else None, "name": c.name}
-        for c in containers
-    ]
-    scan = latest_scan(session, image)
-    return {"docker": docker, "source": scan.source if scan else None}
+    rows.sort(
+        key=lambda r: (
+            r["image"].expected_noisy,
+            r["status"] != "running",
+            -(r["scan"].critical if r["scan"] else 0),
+            r["image"].ref,
+        )
+    )
+    return rows
+
+
+def image_status(session: Session, image: Image) -> dict:
+    """Single-image version of an :func:`image_overview` row."""
+    latest_by_source: dict[str | None, datetime] = {}
+    for scan in sorted(image.scans, key=lambda s: s.scanned_at):
+        latest_by_source[scan.source] = scan.scanned_at
+    return _overview_row(
+        image,
+        latest_scan(session, image),
+        latest_by_source,
+        source_watermarks(session),
+        container_placements(session),
+    )
 
 
 def set_noisy(session: Session, ref: str, value: bool) -> Image:
@@ -94,11 +201,9 @@ def delete_image(session: Session, ref: str) -> dict:
     return {"ref": ref, "scans": scans, "vulnerabilities": vulns}
 
 
-def vuln_summary(session: Session) -> dict:
-    """Rollup over the latest scan per non-noisy image."""
-    images = list_images(session, include_noisy=False)
-    out = {
-        "images": len(images),
+def _empty_rollup() -> dict:
+    return {
+        "images": 0,
         "scanned_images": 0,
         "critical": 0,
         "high": 0,
@@ -107,11 +212,27 @@ def vuln_summary(session: Session) -> dict:
         "unknown": 0,
         "total": 0,
     }
-    for image in images:
-        scan = latest_scan(session, image)
+
+
+def vuln_summary(session: Session) -> dict:
+    """Rollup over the latest scan per non-noisy image.
+
+    Top-level keys are the fleet-wide totals (backward compatible); the
+    ``running`` / ``registry_only`` sub-dicts split the same rollup by
+    deployment status.
+    """
+    out = _empty_rollup()
+    out["running"] = _empty_rollup()
+    out["registry_only"] = _empty_rollup()
+    for row in image_overview(session, include_noisy=False):
+        bucket = out["running" if row["status"] == "running" else "registry_only"]
+        out["images"] += 1
+        bucket["images"] += 1
+        scan = row["scan"]
         if scan is None:
             continue
-        out["scanned_images"] += 1
-        for key in ("critical", "high", "medium", "low", "unknown", "total"):
-            out[key] += getattr(scan, key) or 0
+        for b in (out, bucket):
+            b["scanned_images"] += 1
+            for key in ("critical", "high", "medium", "low", "unknown", "total"):
+                b[key] += getattr(scan, key) or 0
     return out

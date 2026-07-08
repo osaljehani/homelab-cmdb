@@ -385,6 +385,29 @@ td strong { color: var(--text-main); font-weight: 600; }
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
+/* ── Filter tabs (images list: All / Running / Registry-only) ── */
+.tabs {
+  display: flex;
+  gap: .25rem;
+  margin: 1rem 0 .75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs a {
+  padding: .4rem .8rem;
+  font-size: .85rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+
+.tabs a:hover { color: var(--text-main); }
+
+.tabs a.active {
+  color: var(--text-main);
+  border-bottom-color: var(--accent);
+}
+
 /* ── Forms ── */
 input[type=search],
 input[type=text],
