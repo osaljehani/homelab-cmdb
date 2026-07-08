@@ -1,11 +1,14 @@
 FROM python:3.12-slim
 
 # openssh-client is needed by `cmdb collect` (Ansible drives ssh for collection).
+# apt-get upgrade pulls any Debian point-release security fixes available at build time.
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Upgrade pip (base image ships a version with known CVEs) before installing uv.
+RUN pip install --upgrade pip && pip install uv
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
