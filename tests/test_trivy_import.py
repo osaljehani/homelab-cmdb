@@ -150,6 +150,18 @@ def test_derive_source(host, trivy_version, expected):
     assert _derive_source(host, trivy_version) == expected
 
 
+def test_import_persists_envelope_host(db: Session, envelope):
+    import_scan_run(db, envelope)
+    scan = db.query(ImageScan).first()
+    assert scan.host == "testhost"
+
+
+def test_import_without_host_stores_none(db: Session):
+    env = {"scanned_at": "2026-07-01T04:00:00Z", "images": [_report("redis:7", [])]}
+    import_scan_run(db, env)
+    assert db.query(ImageScan).one().host is None
+
+
 def test_import_persists_docker_source(db: Session, envelope):
     # envelope fixture: host=testhost, trivy_version=0.72.0 -> runtime Docker scan
     import_scan_run(db, envelope)

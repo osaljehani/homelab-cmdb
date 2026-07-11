@@ -8,6 +8,7 @@ def seeded(db):
     import_scan_run(
         db,
         {
+            "host": "testhost",
             "scanned_at": "2026-07-01T04:00:00Z",
             "trivy_version": "0.72.0",
             "images": [
@@ -92,6 +93,20 @@ def test_image_tools_expose_stale_and_deployment_status(seeded, monkeypatch):
     roll = server.vuln_summary()
     assert roll.running.high == 1 and roll.running.scanned_images == 1
     assert roll.registry_only.images == 0
+
+
+def test_image_summary_exposes_scan_host(seeded, monkeypatch):
+    from contextlib import contextmanager
+    import cmdb.mcp.server as server
+
+    @contextmanager
+    def _fake_session():
+        yield seeded
+
+    monkeypatch.setattr(server, "get_session", _fake_session)
+
+    s = next(x for x in server.list_image_scans() if x.ref == "nginx:latest")
+    assert s.scan_host == "testhost"
 
 
 def test_delete_image_requires_confirmation(seeded, monkeypatch):

@@ -296,6 +296,7 @@ def _image_summary(session, image, row: dict | None = None) -> ImageSummaryOut:
         stale=row["stale"],
         deployment_status=row["status"],
         running_on=_running_on(row),
+        scan_host=scan.host if scan else None,
     )
 
 

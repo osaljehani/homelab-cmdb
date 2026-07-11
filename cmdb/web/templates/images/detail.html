@@ -24,11 +24,12 @@
 <div class="card">
   <h2>Scan history</h2>
   <table>
-    <thead><tr><th>Scanned</th><th>Source</th><th>trivy</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Total</th></tr></thead>
+    <thead><tr><th>Scanned</th><th>Source</th><th>Host</th><th>trivy</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Total</th></tr></thead>
     <tbody>
       {% for scan in scans %}
       <tr><td>{{ scan.scanned_at.strftime('%Y-%m-%d %H:%M') }}</td>
-          <td>{{ scan.source or '—' }}</td><td>{{ scan.trivy_version or '' }}</td>
+          <td>{{ scan.source or '—' }}</td><td>{{ scan.host or '—' }}</td>
+          <td>{{ scan.trivy_version or '' }}</td>
           <td>{{ scan.critical }}</td><td>{{ scan.high }}</td><td>{{ scan.medium }}</td>
           <td>{{ scan.low }}</td><td>{{ scan.total }}</td></tr>
       {% endfor %}

@@ -69,6 +69,20 @@ def test_image_detail_and_noisy_toggle(db):
         app.dependency_overrides.clear()
 
 
+def test_image_detail_shows_scan_host(db):
+    client = _client(db)
+    try:
+        env = _envelope()
+        env["host"] = "scanner-1"
+        client.post("/import/upload/trivy",
+                    files={"files": ("s.json", json.dumps(env), "application/json")})
+        r = client.get("/images/nginx:latest")
+        assert r.status_code == 200
+        assert "scanner-1" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_image_detail_404_for_unknown(db):
     client = _client(db)
     try:
