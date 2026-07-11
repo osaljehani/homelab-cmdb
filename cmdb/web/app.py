@@ -14,6 +14,7 @@ from cmdb.web.routes import (
     generate,
     settings,
     images,
+    network,
     search,
     topology,
 )
@@ -40,3 +41,4 @@ app.include_router(settings.router, prefix="/settings")
 app.include_router(images.router, prefix="/images")
 app.include_router(search.router, prefix="/search")
 app.include_router(topology.router, prefix="/topology")
+app.include_router(network.router, prefix="/network")

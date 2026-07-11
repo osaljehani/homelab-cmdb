@@ -41,16 +41,17 @@ surface several of these are low effort because the data is already there.
 - **Freeform notes + custom fields per host** Operator-maintained `notes` and key/value
   `custom_fields` on Host — never touched by imports. Editable inline on host detail
   (HTMX), via `cmdb hosts note|set-field|unset-field`, and exposed in MCP `get_host`.
+- **Network / subnet map** `/network` groups hosts by /24 (`services/network.py`,
+  single owner of the subnet heuristic shared with topology), shows per-subnet gateway
+  and members, flags duplicate IPs/MACs, plus a dashboard summary line.
 
 ## Medium effort
 
-1. **Network / subnet map** Group hosts by subnet derived from `primary_ipv4`/`gateway`;
-   show IP allocations and detect duplicate IPs/MACs.
-2. **Storage / disk facts** Parse `ansible_devices`/`ansible_mounts` from `raw_facts`;
+1. **Storage / disk facts** Parse `ansible_devices`/`ansible_mounts` from `raw_facts`;
    capacity per host and low-free-space flags.
-3. **Read-only REST/JSON API** Expose hosts/containers/clusters as JSON (FastAPI makes this
+2. **Read-only REST/JSON API** Expose hosts/containers/clusters as JSON (FastAPI makes this
    trivial) for scripting and dashboards.
-4. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
+3. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
 
 ## Larger / future
 

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_empty_state.html" import empty_state %}
+{% block title %}Network HomeLabCMDB{% endblock %}
+{% block content %}
+<h1>Network</h1>
+
+{% if warning_count %}
+<div class="card">
+  <h2>Conflicts</h2>
+  {% for ip, names in map.duplicate_ips.items() %}
+  <p><span class="badge badge-red">duplicate IP</span> {{ ip }} on
+    {% for n in names %}<a href="/hosts/{{ n }}">{{ n }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% endfor %}
+  {% for mac, names in map.duplicate_macs.items() %}
+  <p><span class="badge badge-red">duplicate MAC</span> {{ mac }} on
+    {% for n in names %}<a href="/hosts/{{ n }}">{{ n }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for subnet in map.subnets %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h2 style="margin:0;">{{ subnet.subnet }}</h2>
+    <span>
+      {% if subnet.gateway %}<span class="badge" title="Most common gateway among members">gw {{ subnet.gateway }}</span>{% endif %}
+      <span class="badge">{{ subnet.hosts | length }}</span>
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Host</th><th>IP</th><th>MAC</th><th>Interface</th></tr>
+    </thead>
+    <tbody>
+    {% for h in subnet.hosts %}
+      <tr>
+        <td><a href="/hosts/{{ h.hostname }}"><strong>{{ h.hostname }}</strong></a></td>
+        <td>{{ h.ip }}{% if h.dup_ip %} <span class="badge badge-red">dup</span>{% endif %}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ h.mac or ' ' }}{% if h.dup_mac %} <span class="badge badge-red">dup</span>{% endif %}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ h.interface or ' ' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+{{ empty_state(
+     "No network data yet",
+     "Import Ansible facts so hosts carry their primary IP, MAC, and gateway.",
+     "Go to Import", "/import") }}
+{% endfor %}
+
+{% if map.unassigned %}
+<div class="card">
+  <h2>No IP recorded</h2>
+  <p class="text-muted" style="font-size:.85rem;">
+    {% for h in map.unassigned %}<a href="/hosts/{{ h.hostname }}">{{ h.hostname }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+</div>
+{% endif %}
+{% endblock %}

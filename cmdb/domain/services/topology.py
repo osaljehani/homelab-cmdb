@@ -8,23 +8,13 @@ host -> compose project -> container; every other relation is an edge.
 """
 
 from datetime import datetime
-from ipaddress import ip_address, ip_network
 
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Container, Host, Image, K8sCluster
 from cmdb.domain.refs import canonical_ref
 from cmdb.domain.services.images import latest_scan
-
-
-def _subnet_of(ip: str | None) -> str | None:
-    """/24 the address belongs to — a heuristic that fits flat homelab LANs."""
-    if not ip:
-        return None
-    try:
-        return str(ip_network(f"{ip_address(ip)}/24", strict=False))
-    except ValueError:
-        return None
+from cmdb.domain.services.network import subnet_of as _subnet_of
 
 
 def _severity_class(session: Session, image: Image | None) -> str:

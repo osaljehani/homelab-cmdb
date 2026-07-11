@@ -108,6 +108,10 @@
         {{ freshness.ts_absent }} not enrolled
       </p>
       {% endif %}
+      <p class="text-muted" style="font-size:.85rem;margin:1rem 0 0;">
+        <a href="/network">Network</a>: <b>{{ network_subnets }}</b> subnet{{ 's' if network_subnets != 1 }}
+        {% if network_warnings %} · <span class="badge badge-red">{{ network_warnings }} conflict{{ 's' if network_warnings != 1 }}</span>{% endif %}
+      </p>
       {% if freshness.stale_hosts %}
       <table style="margin-top:1rem;">
         <thead><tr><th>Stale Host</th><th>Last Seen</th></tr></thead>
