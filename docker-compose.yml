@@ -7,7 +7,7 @@ services:
     volumes:
       - ./data:/data
       - ./inventory/ansible.cfg:/app/ansible.cfg:ro
-      - ${SSH_PRIVATE_KEY}:/run/secrets/ssh_key:ro
+      - ${SSH_PRIVATE_KEY:-/dev/null}:/run/secrets/ssh_key:ro
     environment:
       - CMDB_DB_PATH=/data/cmdb.db
       # No CMDB_ANSIBLE_INVENTORY: Collect generates the inventory from the database

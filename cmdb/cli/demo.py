@@ -13,6 +13,14 @@ database must be untouchable by accident. Seeding always happens in a
 subprocess (not in-process) because ``cmdb/db/session.py`` binds its engine to
 ``settings.db_url`` at import time, and settings are instantiated the moment
 ``cmdb.config`` is imported — which happens as soon as this CLI starts up.
+
+Wipe safety around ``--db``: the default tempdir DB is always fair game to
+wipe in fresh mode (it's throwaway by construction). A user-supplied ``--db``
+is a different story — if it already exists, fresh mode refuses to touch it
+rather than silently deleting a file the user pointed us at (which could be a
+real database). ``demo-seed`` signals "already seeded" with a distinct exit
+code (3) so the parent can tell "already has data, reuse it" (fine in
+``--keep`` mode) apart from a genuine seeding failure (exit 1, always fatal).
 """
 
 import os
@@ -24,6 +32,10 @@ from pathlib import Path
 import typer
 
 app = typer.Typer(help="Demo mode: one command, a populated fictional fleet.")
+
+# demo-seed exit code meaning "DB already has hosts" — distinct from generic
+# failure (1) so the parent can treat it as reuse-ok in --keep mode.
+ALREADY_SEEDED_EXIT_CODE = 3
 
 
 def _default_demo_db() -> Path:
@@ -40,7 +52,11 @@ def demo_cmd(
     fresh: bool = typer.Option(
         True,
         "--fresh/--keep",
-        help="Wipe any existing demo DB before seeding (default) or keep it",
+        help=(
+            "Wipe any existing demo DB before seeding (default), or keep it and reuse "
+            "already-seeded data. A user-supplied --db that already exists is never wiped "
+            "automatically, even with --fresh — see below."
+        ),
     ),
     seed_only: bool = typer.Option(
         False, "--seed-only", help="Seed the demo DB and exit without serving"
@@ -50,26 +66,50 @@ def demo_cmd(
 
     Never touches a real database: the demo DB defaults to a tempdir path and
     is always driven via CMDB_DB_PATH in a child process, never in-process.
+
+    Wipe behavior differs by DB source:
+
+    \b
+    - Default tempdir DB (no --db given): auto-wiped in fresh mode (default),
+      since it's throwaway by construction.
+    - User-supplied --db that already exists: fresh mode REFUSES to wipe it
+      and exits with an error — delete it yourself first, or pass --keep to
+      reuse it as-is.
+    - User-supplied --db that doesn't exist yet: seeded fresh into the new
+      file, no special handling needed.
     """
     db_path = db if db is not None else _default_demo_db()
+    user_supplied_existing_db = db is not None and db_path.exists()
 
     if fresh:
+        if user_supplied_existing_db:
+            typer.echo(
+                f"Refusing to wipe existing user-specified database: {db_path}\n"
+                "Delete it yourself first if you want a fresh demo there, or pass "
+                "--keep to reuse it as-is."
+            )
+            raise typer.Exit(1)
         for candidate in (db_path, db_path.with_name(db_path.name + "-wal"),
                           db_path.with_name(db_path.name + "-shm")):
             candidate.unlink(missing_ok=True)
 
     env = {**os.environ, "CMDB_DB_PATH": str(db_path)}
 
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "cmdb.cli.main", "demo-seed"],
-            env=env,
-            check=True,
-        )
-    except subprocess.CalledProcessError:
+    result = subprocess.run(
+        [sys.executable, "-m", "cmdb.cli.main", "demo-seed"],
+        env=env,
+    )
+    if result.returncode == ALREADY_SEEDED_EXIT_CODE:
+        if fresh:
+            # Fresh mode should never see an already-seeded DB — the tempdir
+            # path was just wiped above (or a user-supplied one that doesn't
+            # exist yet was seeded fresh). Treat it as a genuine failure.
+            raise typer.Exit(1)
+        typer.echo(f"Demo database already seeded — reusing it: {db_path}")
+    elif result.returncode != 0:
         raise typer.Exit(1)
-
-    typer.echo(f"Demo database ready: {db_path}")
+    else:
+        typer.echo(f"Demo database ready: {db_path}")
 
     if seed_only:
         return
@@ -86,9 +126,9 @@ def demo_cmd(
 def demo_seed_cmd() -> None:
     """Internal: seed the DB pointed at by CMDB_DB_PATH. Not for direct use.
 
-    Refuses to run against a database that already has hosts in it, so
-    ``--keep`` on an already-seeded DB is a safe no-op rather than a
-    duplicate-data footgun.
+    Exits with ALREADY_SEEDED_EXIT_CODE (3) if the database already has
+    hosts, so the parent ``demo`` command can distinguish "already seeded —
+    fine to reuse in --keep mode" from a genuine seeding failure (exit 1).
     """
     from cmdb.db import run_migrations
     from cmdb.db.session import get_session
@@ -101,9 +141,9 @@ def demo_seed_cmd() -> None:
         if session.query(Host).count() > 0:
             typer.echo(
                 "Demo database already has hosts — refusing to reseed. "
-                "Use --fresh (the default) to wipe it first, or point --db elsewhere."
+                "Use --fresh (the default) to wipe it first, or --keep to reuse it."
             )
-            raise typer.Exit(1)
+            raise typer.Exit(ALREADY_SEEDED_EXIT_CODE)
         seed(session)
 
     typer.echo("Demo data seeded.")

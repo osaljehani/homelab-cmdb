@@ -1,7 +1,11 @@
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi.testclient import TestClient
+from typer.testing import CliRunner
 
+from cmdb.cli.main import app as cli_app
 from cmdb.demo.seed import seed
 from cmdb.domain.models import (
     Container,
@@ -15,6 +19,8 @@ from cmdb.domain.models import (
 from cmdb.domain.services.dashboard import fleet_freshness
 from cmdb.web.app import app
 from cmdb.web.deps import get_db_dep
+
+runner = CliRunner()
 
 
 def _client(db):
@@ -179,3 +185,64 @@ class TestSeedWebPages:
             assert r.status_code == 200
         finally:
             app.dependency_overrides.clear()
+
+
+class TestDemoCommandDbSafety:
+    """`cmdb demo --db <path>` wipe-safety behavior (CLI level, real subprocess).
+
+    These invoke the actual `demo` command with --seed-only so the real
+    demo-seed subprocess runs against a real tempfile DB — no mocking of the
+    subprocess boundary, matching how `cmdb/cli/demo.py` actually works.
+    """
+
+    def test_user_supplied_existing_db_refused_in_fresh_mode(self, tmp_path):
+        db_path = tmp_path / "existing.db"
+        db_path.write_bytes(b"not a real sqlite db, just needs to exist")
+
+        result = runner.invoke(cli_app, ["demo", "--seed-only", "--db", str(db_path)])
+
+        assert result.exit_code == 1, result.output
+        assert "refus" in result.output.lower()
+        # Must NOT have been deleted or overwritten.
+        assert db_path.read_bytes() == b"not a real sqlite db, just needs to exist"
+
+    def test_user_supplied_nonexistent_db_seeds_fresh(self, tmp_path):
+        db_path = tmp_path / "brand-new.db"
+        assert not db_path.exists()
+
+        result = runner.invoke(cli_app, ["demo", "--seed-only", "--db", str(db_path)])
+
+        assert result.exit_code == 0, result.output
+        assert db_path.exists()
+
+    def test_keep_mode_reuses_already_seeded_db(self, tmp_path):
+        db_path = tmp_path / "reuse.db"
+
+        first = runner.invoke(cli_app, ["demo", "--seed-only", "--db", str(db_path)])
+        assert first.exit_code == 0, first.output
+
+        second = runner.invoke(
+            cli_app, ["demo", "--seed-only", "--keep", "--db", str(db_path)]
+        )
+
+        assert second.exit_code == 0, second.output
+        assert "reusing" in second.output.lower() or "already seeded" in second.output.lower()
+
+    def test_default_tempdir_db_still_auto_wiped_when_fresh(self, monkeypatch):
+        # The default (no --db) tempdir path stays throwaway: fresh mode wipes
+        # it even though it may already exist from a prior run.
+        fake_default = Path(tempfile.gettempdir()) / "cmdb-demo-test-autowipe.db"
+        monkeypatch.setattr("cmdb.cli.demo._default_demo_db", lambda: fake_default)
+        try:
+            first = runner.invoke(cli_app, ["demo", "--seed-only"])
+            assert first.exit_code == 0, first.output
+
+            # Second fresh run must succeed too (auto-wiped, not refused).
+            second = runner.invoke(cli_app, ["demo", "--seed-only"])
+            assert second.exit_code == 0, second.output
+            assert "refus" not in second.output.lower()
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                Path(str(fake_default) + suffix if suffix else fake_default).unlink(
+                    missing_ok=True
+                )
