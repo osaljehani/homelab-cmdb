@@ -19,13 +19,12 @@ services:
 
   # Demo mode: a populated fictional fleet, no setup required.
   #   docker compose --profile demo up cmdb-demo
-  # Uses its own DB path (/tmp/cmdb-demo.db, in-container only — not the
-  # ./data volume) so it can never touch a real cmdb.db.
+  # No --db / CMDB_DB_PATH here: `cmdb demo` defaults to <tempdir>/cmdb-demo.db
+  # (in-container /tmp, not the ./data volume) and auto-wipes only that default
+  # path — so restarts reseed cleanly and a real cmdb.db is never touchable.
   cmdb-demo:
     build: .
     profiles: ["demo"]
     ports:
       - "8080:8080"
-    environment:
-      - CMDB_DB_PATH=/tmp/cmdb-demo.db
-    entrypoint: ["uv", "run", "cmdb", "demo", "--host", "0.0.0.0", "--db", "/tmp/cmdb-demo.db"]
+    entrypoint: ["uv", "run", "cmdb", "demo", "--host", "0.0.0.0"]
