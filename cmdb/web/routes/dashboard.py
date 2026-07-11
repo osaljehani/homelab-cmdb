@@ -12,6 +12,7 @@ from cmdb.domain.services.dashboard import (
 )
 from cmdb.domain.services.security import posture_summary
 from cmdb.domain.services.images import vuln_summary
+from cmdb.domain.services.network import network_map
 from cmdb.web.deps import templates, get_db_dep
 
 router = APIRouter()
@@ -23,6 +24,7 @@ def dashboard(request: Request, db: Session = Depends(get_db_dep)):
     cluster_count = db.query(func.count(K8sCluster.id)).scalar()
     container_count = db.query(func.count(Container.id)).scalar()
     last_import = db.query(ImportLog).order_by(ImportLog.imported_at.desc()).first()
+    nm = network_map(db)
 
     return templates.TemplateResponse(
         request,
@@ -40,5 +42,7 @@ def dashboard(request: Request, db: Session = Depends(get_db_dep)):
             "changes": recent_changes(db),
             "os_breakdown": os_breakdown(db),
             "stale_days": settings.stale_days,
+            "network_subnets": len(nm["subnets"]),
+            "network_warnings": len(nm["duplicate_ips"]) + len(nm["duplicate_macs"]),
         },
     )
