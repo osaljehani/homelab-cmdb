@@ -1,0 +1,50 @@
+{
+  "ansible_facts": {
+    "ansible_hostname": "atlas",
+    "ansible_fqdn": "atlas.example.lan",
+    "ansible_machine_id": "demo00010000000000000000000001",
+    "ansible_system_vendor": "Example Systems",
+    "ansible_product_name": "PowerEdge Demo",
+    "ansible_product_version": "1.0",
+    "ansible_product_serial": "SN-DEMO-0001",
+    "ansible_form_factor": "Rack Mount Chassis",
+    "ansible_os_family": "Debian",
+    "ansible_distribution": "Ubuntu",
+    "ansible_distribution_version": "24.04",
+    "ansible_distribution_release": "noble",
+    "ansible_kernel": "6.8.0-40-generic",
+    "ansible_pkg_mgr": "apt",
+    "ansible_architecture": "x86_64",
+    "ansible_processor": ["0", "GenuineIntel", "Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz"],
+    "ansible_processor_cores": 8,
+    "ansible_processor_vcpus": 16,
+    "ansible_memtotal_mb": 32768,
+    "ansible_virtualization_type": "kvm",
+    "ansible_virtualization_role": "host",
+    "ansible_service_mgr": "systemd",
+    "ansible_uptime_seconds": 2592000,
+    "ansible_fips": false,
+    "ansible_bios_vendor": "Example BIOS",
+    "ansible_bios_version": "2.1.0",
+    "ansible_bios_date": "03/01/2024",
+    "ansible_board_vendor": "Example Systems",
+    "ansible_board_name": "Demo Board",
+    "ansible_board_serial": "BRD-DEMO-0001",
+    "ansible_default_ipv4": {
+      "address": "192.0.2.10",
+      "interface": "eth0",
+      "macaddress": "02:00:5e:00:00:10",
+      "gateway": "192.0.2.1"
+    },
+    "ansible_apparmor": {"status": "enabled"},
+    "ansible_selinux": {"status": "disabled"},
+    "ansible_devices": {
+      "sda": {"model": "Demo NVMe 1TB", "size": "931.51 GB", "rotational": "0"},
+      "sdb": {"model": "Demo HDD 4TB", "size": "3.64 TB", "rotational": "1"}
+    },
+    "ansible_mounts": [
+      {"mount": "/", "device": "/dev/sda1", "fstype": "ext4", "size_total": 500107862016, "size_available": 210107862016},
+      {"mount": "/data", "device": "/dev/sdb1", "fstype": "ext4", "size_total": 4000787030016, "size_available": 800787030016}
+    ]
+  }
+}

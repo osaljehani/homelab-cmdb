@@ -1,0 +1,32 @@
+[
+  {
+    "host": "atlas",
+    "ports": [
+      {"proto": "tcp", "address": "*", "port": 22, "process": "sshd"},
+      {"proto": "tcp", "address": "0.0.0.0", "port": 80, "process": "docker-proxy"},
+      {"proto": "tcp", "address": "0.0.0.0", "port": 443, "process": "docker-proxy"},
+      {"proto": "tcp", "address": "127.0.0.1", "port": 5432, "process": "docker-proxy"}
+    ]
+  },
+  {
+    "host": "hydra",
+    "ports": [
+      {"proto": "tcp", "address": "*", "port": 22, "process": "sshd"},
+      {"proto": "tcp", "address": "*", "port": 6443, "process": "kube-apiserver"}
+    ]
+  },
+  {
+    "host": "vega",
+    "ports": [
+      {"proto": "tcp", "address": "*", "port": 22, "process": "sshd"},
+      {"proto": "tcp", "address": "0.0.0.0", "port": 443, "process": "docker-proxy"},
+      {"proto": "tcp", "address": "0.0.0.0", "port": 8080, "process": "docker-proxy"}
+    ]
+  },
+  {
+    "host": "rho",
+    "ports": [
+      {"proto": "tcp", "address": "*", "port": 22, "process": "sshd"}
+    ]
+  }
+]

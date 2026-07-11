@@ -1,19 +1,70 @@
 # HomeLabCMDB
 
-A homelab inventory and CMDB (Configuration Management Database) tool. Feed it Ansible facts and
-browse your infrastructure hosts, Docker containers, Kubernetes topology, Tailscale state, and
-open ports through a web UI or the CLI.
+Ansible-fed, SQLite-backed CMDB for your homelab — see every host, container, CVE, and Tailscale
+node in one offline-capable web UI, and query it all from Claude via MCP.
 
-- **Backend:** FastAPI + SQLite (via SQLAlchemy / Alembic migrations)
-- **Frontend:** HTMX + Jinja2 templates, graphite terminal-style dark theme (light theme included).
-  All assets (fonts, htmx, cytoscape) are vendored the UI works fully offline
-- **CLI:** Typer
-- **Import sources:** Ansible `setup` facts, Docker (`docker ps`), Kubernetes (`kubectl`),
-  Tailscale (`tailscale status`), listening ports (`ss`), **trivy image scans**
-- **Collection:** file-based import **or** agentless on-demand collection over SSH
+[![CI](https://github.com/osaljehani/homelab-cmdb/actions/workflows/ci.yml/badge.svg)](https://github.com/osaljehani/homelab-cmdb/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+![Container: ghcr.io/osaljehani/homelab-cmdb](https://img.shields.io/badge/container-ghcr.io%2Fosaljehani%2Fhomelab--cmdb-blue?logo=docker)
 
-Hosts are upserted on `ansible_machine_id`, so re-importing the same machine updates it without
-creating duplicates.
+![Dashboard — severity breakdown, fleet freshness, and security posture for the built-in demo fleet](docs/screenshots/dashboard.png)
+
+*Dashboard: severity breakdown, 30-day vulnerability trend, fleet freshness (one stale host), and
+security posture — all from the built-in demo dataset.*
+
+| Topology | Images |
+|---|---|
+| [![Topology graph of the demo lab](docs/screenshots/topology.png)](docs/screenshots/topology.png) | [![Image vulnerability view](docs/screenshots/images.png)](docs/screenshots/images.png) |
+| Interactive topology: containers nested by compose project, a K8s cluster, two subnets, the tailnet, and exposure rings. | Trivy image scans: per-image history, severity counts, and browsable findings. |
+
+More views: [host detail](docs/screenshots/host-detail.png) · [network](docs/screenshots/network.png).
+All screenshots are from the built-in fictional demo dataset.
+
+---
+
+## Try it in 60 seconds
+
+```bash
+git clone https://github.com/osaljehani/homelab-cmdb && cd homelab-cmdb
+uv sync
+uv run cmdb demo
+```
+
+Or with Docker (no `uv` needed):
+
+```bash
+docker compose --profile demo up cmdb-demo
+```
+
+Either path seeds a fictional sample fleet — 6 hosts, a Kubernetes cluster, Docker containers, and
+trivy CVE scans — and serves it at http://127.0.0.1:8080 (http://localhost:8080 under Docker). The
+demo uses a throwaway database in your temp directory; **your real `cmdb.db` is never touched.**
+
+> The `docker compose` demo builds the image locally on first run. Prebuilt
+> `ghcr.io/osaljehani/homelab-cmdb` images are published starting with the first release.
+
+---
+
+## Why HomeLabCMDB?
+
+- **Homelab-scale, not enterprise DCIM.** NetBox and friends are excellent but heavyweight for a
+  5–20 host lab. This is one binary and one file.
+- **Single SQLite file, no external services.** No Postgres, no Redis, no message broker — the
+  whole CMDB is `data/cmdb.db`.
+- **Agentless.** Facts come from SSH + Ansible; nothing is installed on your hosts. File-based
+  import works too, for machines you can't reach from the controller.
+- **One inventory, linked.** Hosts, Docker containers, Kubernetes topology, trivy CVEs, and
+  Tailscale state live in the *same* database — containers link to scanned images by ref.
+- **Interactive topology graph.** See the whole lab at once: compose-nested containers, K8s
+  clusters, subnets, the tailnet, and exposure rings for listening ports and serve/funnel.
+- **Fully offline.** Fonts, HTMX, and Cytoscape are vendored — no CDN, no outbound calls. Charts
+  are server-rendered SVG, no JS chart library. Graphite terminal-style dark theme, with a light
+  theme included.
+- **LLM-native.** A 23-tool MCP server lets you ask Claude "what's stale?" or "what's exposed?"
+  against your live inventory.
+
+---
 
 ## Features
 
@@ -59,17 +110,23 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
 ---
 
-## Quick start with Docker
+## Running against your own data
+
+The demo above serves a throwaway fleet. To stand up an empty instance for your own inventory,
+use one of the two paths below, then import Ansible facts.
+
+### Docker
 
 ```bash
 docker compose up
 ```
 
 The web UI is available at http://localhost:8080. The database persists in `./data/cmdb.db`.
+After the first release, `docker compose pull cmdb` fetches the prebuilt image — otherwise
+`docker compose up` builds it locally, since the compose file has both `image:` and `build:`
+and only pulls when the image is absent.
 
----
-
-## Local setup
+### Local
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
@@ -229,6 +286,8 @@ Notes on behaviour:
 ## CLI reference
 
 ```bash
+uv run cmdb demo                     # seed a fictional demo fleet and serve it (never touches real data)
+
 uv run cmdb hosts list               # list all hosts
 uv run cmdb hosts show <hostname>    # show host detail
 uv run cmdb hosts history <hostname> # show a host's change history (field diffs)
@@ -302,6 +361,16 @@ uv run ruff check cmdb/          # lint
 just test                        # run the full suite via the justfile
 ```
 
+### A note on tests and fixtures
+
+The real, fixture-bearing `test_*.py` files live only on the maintainer's machine — they carry
+real homelab hostnames, IPs, and usernames and are gitignored, never committed. What CI runs (and
+what ships in this repo) is the committed test suite plus scrubbed `*-example.py` copies with
+purely fictional fixture data (`testhost` / `192.168.1.10`-style placeholders). On a fresh clone, each
+`tests/*-example.py` is materialized into its `tests/*.py` counterpart — see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). **Contributions must use fictional data
+only** (fictional hostnames, RFC 5737 IPs like `192.0.2.x`, `example.lan` domains).
+
 ---
 
 ## Environment variables
@@ -325,10 +394,11 @@ just test                        # run the full suite via the justfile
 
 ```
 cmdb/
-  cli/          CLI entry points (thin shell over domain)
+  cli/          Typer CLI entry points (thin shell over domain)
   web/          FastAPI routes and Jinja2 templates (thin shell over domain)
     static/     Vendored assets (fonts, htmx, cytoscape) refresh via scripts/vendor-assets.sh
   mcp/          MCP server exposing domain services as tools (thin shell over domain)
+  demo/         Demo-mode seeder and fictional fixture data (cmdb demo)
   domain/
     models.py   SQLAlchemy models (Host, Tag, Container, K8s*, TailscaleService, ListeningPort, …)
     services/   All business logic lives here (ansible, docker_import, k8s_import,
@@ -341,3 +411,10 @@ tests/          pytest test suite
 docs/           Roadmap and additional docs
 data/           Database volume mount (Docker)
 ```
+
+---
+
+## License
+
+[MIT](LICENSE)
+</content>

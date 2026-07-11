@@ -16,7 +16,6 @@ CLAUDE.md
 out/
 tests/fixtures/
 # Real, homelab-data-bearing tests stay local; only scrubbed *-example.py copies are published.
-tests/conftest.py
 tests/test_*.py
 !tests/test_*-example.py
 docs/superpowers/

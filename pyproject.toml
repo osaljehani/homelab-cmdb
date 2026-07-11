@@ -7,6 +7,17 @@ name = "homelab-cmdb"
 version = "0.1.0"
 description = "Homelab CMDB Ansible-fed, SQLite-backed inventory"
 requires-python = ">=3.12"
+license = "MIT"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "Topic :: System :: Systems Administration",
+    "Topic :: System :: Monitoring",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -21,6 +32,12 @@ dependencies = [
     "rich>=13.0",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/osaljehani/homelab-cmdb"
+Repository = "https://github.com/osaljehani/homelab-cmdb"
+Issues = "https://github.com/osaljehani/homelab-cmdb/issues"
+Changelog = "https://github.com/osaljehani/homelab-cmdb/blob/master/CHANGELOG.md"
 
 [project.scripts]
 cmdb = "cmdb.cli.main:app"

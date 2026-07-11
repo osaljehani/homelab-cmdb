@@ -1,0 +1,46 @@
+{
+  "ansible_facts": {
+    "ansible_hostname": "hydra",
+    "ansible_fqdn": "hydra.example.lan",
+    "ansible_machine_id": "demo00020000000000000000000002",
+    "ansible_system_vendor": "Example Systems",
+    "ansible_product_name": "ProLiant Demo",
+    "ansible_product_version": "1.0",
+    "ansible_product_serial": "SN-DEMO-0002",
+    "ansible_form_factor": "Rack Mount Chassis",
+    "ansible_os_family": "Debian",
+    "ansible_distribution": "Debian",
+    "ansible_distribution_version": "12",
+    "ansible_distribution_release": "bookworm",
+    "ansible_kernel": "6.8.0-40-generic",
+    "ansible_pkg_mgr": "apt",
+    "ansible_architecture": "x86_64",
+    "ansible_processor": ["0", "GenuineIntel", "Intel(R) Xeon(R) CPU E5-2660 v4 @ 2.00GHz"],
+    "ansible_processor_cores": 8,
+    "ansible_processor_vcpus": 16,
+    "ansible_memtotal_mb": 65536,
+    "ansible_virtualization_type": "kvm",
+    "ansible_virtualization_role": "host",
+    "ansible_service_mgr": "systemd",
+    "ansible_uptime_seconds": 2592000,
+    "ansible_fips": false,
+    "ansible_bios_vendor": "Example BIOS",
+    "ansible_bios_version": "2.1.0",
+    "ansible_bios_date": "03/01/2024",
+    "ansible_board_vendor": "Example Systems",
+    "ansible_board_name": "Demo Board",
+    "ansible_board_serial": "BRD-DEMO-0002",
+    "ansible_default_ipv4": {
+      "address": "192.0.2.11",
+      "interface": "eth0",
+      "macaddress": "02:00:5e:00:00:11",
+      "gateway": "192.0.2.1"
+    },
+    "ansible_apparmor": {"status": "enabled"},
+    "ansible_selinux": {"status": "disabled"},
+    "ansible_devices": {},
+    "ansible_mounts": [
+      {"mount": "/", "device": "/dev/sda1", "fstype": "ext4", "size_total": 214748364800, "size_available": 107374182400}
+    ]
+  }
+}

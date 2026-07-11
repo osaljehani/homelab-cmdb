@@ -1,0 +1,70 @@
+[
+  {
+    "host": "atlas",
+    "self": {
+      "ipv4": "100.64.0.10",
+      "dns_name": "atlas.tailnet-demo.ts.net",
+      "tags": "tag:server",
+      "exit_node": false,
+      "online": true
+    },
+    "services": [
+      {"proto": "https", "port": 443, "target": "http://127.0.0.1:3000", "funnel": true}
+    ]
+  },
+  {
+    "host": "hydra",
+    "self": {
+      "ipv4": "100.64.0.11",
+      "dns_name": "hydra.tailnet-demo.ts.net",
+      "tags": "tag:k8s",
+      "exit_node": false,
+      "online": true
+    },
+    "services": []
+  },
+  {
+    "host": "orion",
+    "self": {
+      "ipv4": "100.64.0.12",
+      "dns_name": "orion.tailnet-demo.ts.net",
+      "tags": "tag:k8s",
+      "exit_node": false,
+      "online": true
+    },
+    "services": []
+  },
+  {
+    "host": "lyra",
+    "self": {
+      "ipv4": "100.64.0.13",
+      "dns_name": "lyra.tailnet-demo.ts.net",
+      "tags": "tag:k8s",
+      "exit_node": false,
+      "online": true
+    },
+    "services": []
+  },
+  {
+    "host": "vega",
+    "self": {
+      "ipv4": "100.64.0.14",
+      "dns_name": "vega.tailnet-demo.ts.net",
+      "tags": "tag:exit-node",
+      "exit_node": true,
+      "online": true
+    },
+    "services": []
+  },
+  {
+    "host": "rho",
+    "self": {
+      "ipv4": "100.64.0.15",
+      "dns_name": "rho.tailnet-demo.ts.net",
+      "tags": "tag:backup",
+      "exit_node": false,
+      "online": false
+    },
+    "services": []
+  }
+]

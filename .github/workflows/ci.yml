@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Materialize example tests
+        # Real, homelab-data-bearing tests (tests/test_*.py) and tests/conftest.py
+        # local versions are gitignored — they carry real hostnames/IPs/usernames
+        # and are never committed. The committed tests/*-example.py files are
+        # scrubbed copies (testhost/192.168.1.10-style fixture data) that stand
+        # in for them on a fresh clone / in CI. Materialize them here, skipping
+        # any target that already exists as a tracked file (e.g. conftest.py,
+        # or the test_hosts_service.py / test_hosts_service-example.py pair).
+        run: |
+          for f in tests/*-example.py; do
+            target="${f%-example.py}.py"
+            [ -e "$target" ] || cp "$f" "$target"
+          done
+
+      - name: Test
+        run: uv run pytest -v
