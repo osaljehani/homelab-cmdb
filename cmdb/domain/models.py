@@ -244,6 +244,9 @@ class K8sCluster(Base):
     namespaces = relationship(
         "K8sNamespace", back_populates="cluster", cascade="all, delete-orphan"
     )
+    workloads = relationship(
+        "K8sWorkload", back_populates="cluster", cascade="all, delete-orphan"
+    )
 
 
 class K8sNode(Base):
@@ -270,6 +273,33 @@ class K8sNamespace(Base):
     cluster = relationship("K8sCluster", back_populates="namespaces")
 
 
+class K8sWorkload(Base):
+    """A running pod container observed by the k8s collection probe.
+
+    Replaced wholesale per cluster on every import (like Container per host),
+    so rows always reflect the latest `kubectl get pods -A` snapshot.
+    """
+
+    __tablename__ = "k8s_workloads"
+    __table_args__ = (
+        UniqueConstraint("cluster_id", "namespace", "pod_name", "container_name"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    cluster_id = Column(Integer, ForeignKey("k8s_clusters.id"), nullable=False)
+    namespace = Column(String, nullable=False)
+    pod_name = Column(String, nullable=False)
+    container_name = Column(String, nullable=False)
+    image = Column(String, nullable=False)  # raw pod-spec ref
+    # canonical_ref(image) — the join key to Image.ref. NULL for digest-only
+    # refs (repo@sha256:...) where defaulting to :latest would fabricate a
+    # match against a possibly different build.
+    image_canonical = Column(String, index=True)
+    last_seen = Column(DateTime, default=datetime.utcnow)
+
+    cluster = relationship("K8sCluster", back_populates="workloads")
+
+
 class ImportSource(str, Enum):
     CLI = "cli"
     WEB = "web"
@@ -289,6 +319,7 @@ class ImportLog(Base):
     k8s_clusters_upserted = Column(Integer, nullable=True)
     k8s_nodes_upserted = Column(Integer, nullable=True)
     k8s_namespaces_upserted = Column(Integer, nullable=True)
+    k8s_workloads_upserted = Column(Integer, nullable=True)
     tailscale_services_upserted = Column(Integer, nullable=True)
     listening_ports_upserted = Column(Integer, nullable=True)
     images_scanned = Column(Integer, nullable=True)
