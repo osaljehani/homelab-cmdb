@@ -69,6 +69,53 @@ def test_image_detail_and_noisy_toggle(db):
         app.dependency_overrides.clear()
 
 
+def _seed_k8s_placement(db):
+    from datetime import datetime
+
+    from cmdb.domain.models import Image, ImageScan, K8sCluster, K8sWorkload
+
+    img = Image(ref="portfolio:0.0.1", first_seen=datetime(2026, 7, 1))
+    db.add(img)
+    db.flush()
+    db.add(
+        ImageScan(
+            image_id=img.id,
+            scanned_at=datetime(2026, 7, 3),
+            source="kubernetes",
+            total=0,
+        )
+    )
+    cluster = K8sCluster(name="demo-cluster")
+    db.add(cluster)
+    db.flush()
+    db.add(
+        K8sWorkload(
+            cluster_id=cluster.id,
+            namespace="web",
+            pod_name="portfolio-abc",
+            container_name="main",
+            image="portfolio:0.0.1",
+            image_canonical="portfolio:0.0.1",
+        )
+    )
+    db.commit()
+
+
+def test_images_page_upgrades_registry_badge_to_cluster_placement(db):
+    client = _client(db)
+    try:
+        _seed_k8s_placement(db)
+        r = client.get("/images/")
+        assert r.status_code == 200
+        assert "demo-cluster" in r.text
+        assert "registry only" not in r.text
+
+        r = client.get("/images/portfolio:0.0.1")
+        assert "demo-cluster" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_image_detail_shows_scan_host(db):
     client = _client(db)
     try:
