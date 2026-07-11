@@ -74,6 +74,10 @@ class Host(Base):
     tailscale_exit_node = Column(Boolean)
     tailscale_online = Column(Boolean)
     raw_facts = Column(JSON)
+    # Operator-maintained, never touched by imports: freeform markdown notes
+    # and arbitrary key/value custom fields.
+    notes = Column(Text)
+    custom_fields = Column(JSON)
     last_seen = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -89,6 +89,8 @@ class HostDetailOut(HostOut):
     containers: list[ContainerOut] = []
     listening_ports: list[PortOut] = []
     tailscale_services: list[TailscaleServiceOut] = []
+    notes: str | None = None
+    custom_fields: dict[str, Any] | None = None
 
 
 class PostureOut(BaseModel):

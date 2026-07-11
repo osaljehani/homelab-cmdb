@@ -9,7 +9,10 @@ from cmdb.domain.services.hosts import (
     delete_host,
     get_host,
     list_hosts,
+    remove_custom_field,
     remove_tag,
+    set_custom_field,
+    set_notes,
 )
 from cmdb.domain.services.history import host_history
 from cmdb.domain.services.security import host_posture
@@ -128,6 +131,44 @@ def untag_cmd(hostname: str, tag: str) -> None:
     with get_session() as session:
         remove_tag(session, hostname, tag)
     console.print(f"[green]Removed tag '{tag}' from '{hostname}'[/green]")
+
+
+@app.command("note")
+def note_cmd(
+    hostname: str,
+    text: str | None = typer.Argument(None, help="Note text; omit to print the current note"),
+    clear: bool = typer.Option(False, "--clear", help="Clear the note"),
+) -> None:
+    """Show or set a host's freeform note."""
+    with get_session() as session:
+        if clear:
+            set_notes(session, hostname, None)
+            console.print(f"[green]Cleared note on '{hostname}'[/green]")
+        elif text is None:
+            host = get_host(session, hostname)
+            if not host:
+                console.print(f"[red]Host '{hostname}' not found[/red]")
+                raise typer.Exit(1)
+            console.print(host.notes or "[dim](no note)[/dim]")
+        else:
+            set_notes(session, hostname, text)
+            console.print(f"[green]Saved note on '{hostname}'[/green]")
+
+
+@app.command("set-field")
+def set_field_cmd(hostname: str, key: str, value: str) -> None:
+    """Set a custom key/value field on a host."""
+    with get_session() as session:
+        set_custom_field(session, hostname, key, value)
+    console.print(f"[green]Set '{key}' on '{hostname}'[/green]")
+
+
+@app.command("unset-field")
+def unset_field_cmd(hostname: str, key: str) -> None:
+    """Remove a custom field from a host."""
+    with get_session() as session:
+        remove_custom_field(session, hostname, key)
+    console.print(f"[green]Removed '{key}' from '{hostname}'[/green]")
 
 
 @app.command("delete")
