@@ -1,4 +1,4 @@
-from cmdb.domain.models import Host, Tag, K8sCluster, K8sNode, ImportLog, K8sNodeRole, ImportSource
+from cmdb.domain.models import Host, ImportLog, K8sNodeRole, ImportSource
 
 
 def test_host_model_has_machine_id():
@@ -19,7 +19,7 @@ def test_import_source_enum():
 
 def test_tailscale_and_ports_models(db):
     from cmdb.domain.models import (
-        Host, ListeningPort, TailscaleService, ImportLog, ImportSource,
+        Host, ListeningPort, TailscaleService, ImportSource,
     )
 
     host = Host(machine_id="mid-1", hostname="host-a",
