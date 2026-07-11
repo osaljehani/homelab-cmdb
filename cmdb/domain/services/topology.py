@@ -13,6 +13,7 @@ from ipaddress import ip_address, ip_network
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Container, Host, Image, K8sCluster
+from cmdb.domain.refs import canonical_ref
 from cmdb.domain.services.images import latest_scan
 
 
@@ -210,17 +211,20 @@ def build_topology(session: Session) -> dict:
         )
 
         if c.image:
-            sev = _severity_class(session, images_by_ref.get(c.image))
-            if c.image not in image_refs_used:
-                image_refs_used.add(c.image)
-                image = images_by_ref.get(c.image)
+            # Image.ref is canonical (ingest/migration), so normalize the raw
+            # `docker ps` spelling before any lookup or node id.
+            cref = canonical_ref(c.image)
+            sev = _severity_class(session, images_by_ref.get(cref))
+            if cref not in image_refs_used:
+                image_refs_used.add(cref)
+                image = images_by_ref.get(cref)
                 nodes.append(
                     {
                         "data": {
-                            "id": f"image:{c.image}",
-                            "label": c.image,
+                            "id": f"image:{cref}",
+                            "label": cref,
                             "kind": "image",
-                            "url": f"/images/{c.image}" if image else None,
+                            "url": f"/images/{cref}" if image else None,
                         },
                         "classes": f"image layer-images {sev}",
                     }
@@ -230,7 +234,7 @@ def build_topology(session: Session) -> dict:
                     "data": {
                         "id": f"runs:{hostname}/{c.name}",
                         "source": f"container:{hostname}/{c.name}",
-                        "target": f"image:{c.image}",
+                        "target": f"image:{cref}",
                         "kind": "runs",
                     },
                     "classes": f"layer-images runs {sev}",

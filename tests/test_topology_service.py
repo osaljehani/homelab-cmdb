@@ -99,6 +99,36 @@ def test_unmatched_container_image_is_unscanned(db):
     assert "sev-unscanned" in _node(graph, "image:ghost:latest")["classes"]
 
 
+def test_container_raw_ref_canonicalized_for_image_node(db):
+    host = _host(1)
+    img = Image(ref="nginx:1.25", first_seen=datetime(2026, 1, 1))
+    db.add_all([host, img])
+    db.flush()
+    db.add(Container(host_id=host.id, name="web", image="library/nginx:1.25", state="running"))
+    db.add(ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=2, total=2))
+    db.commit()
+
+    graph = build_topology(db)
+    node = _node(graph, "image:nginx:1.25")
+    assert "sev-critical" in node["classes"]
+    assert node["data"]["url"] == "/images/nginx:1.25"
+    _edge(graph, "container:host-1/web", "image:nginx:1.25")
+    assert "image:library/nginx:1.25" not in _ids(graph)
+
+
+def test_ref_spellings_share_one_image_node(db):
+    host = _host(1)
+    db.add(host)
+    db.flush()
+    db.add(Container(host_id=host.id, name="a", image="nginx", state="running"))
+    db.add(Container(host_id=host.id, name="b", image="nginx:latest", state="running"))
+    db.commit()
+
+    graph = build_topology(db)
+    assert _ids(graph).count("image:nginx:latest") == 1
+    assert "image:nginx" not in _ids(graph)
+
+
 def test_tailscale_edges_and_exit_node(db):
     online = _host(1, tailscale_ipv4="100.64.0.1", tailscale_online=True, tailscale_exit_node=True)
     offline = _host(2, tailscale_ipv4="100.64.0.2", tailscale_online=False)
