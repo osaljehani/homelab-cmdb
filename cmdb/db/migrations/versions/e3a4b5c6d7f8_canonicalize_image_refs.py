@@ -23,12 +23,17 @@ def canonicalize_refs(bind) -> None:
     """Rewrite every images.ref to its canonical form, merging collisions.
 
     Deterministic survivor = smallest id. Duplicate scans are reassigned to
-    the survivor; the survivor's timestamps/digest roll up to the newest scan.
+    the survivor; the survivor's timestamps/digest roll up to the newest scan,
+    and expected_noisy is OR-ed across the group so a noisy-only duplicate
+    keeps its CVEs suppressed after the merge.
     Idempotent: once all refs are canonical, re-running changes nothing.
     """
     rows = list(
         bind.execute(
-            sa.text("SELECT id, ref, digest, first_seen, last_scanned_at FROM images")
+            sa.text(
+                "SELECT id, ref, digest, first_seen, last_scanned_at, "
+                "expected_noisy FROM images"
+            )
         )
     )
     groups: dict[str, list] = {}
@@ -52,16 +57,18 @@ def canonicalize_refs(bind) -> None:
         )
         scanned = [m for m in members if m.last_scanned_at]
         newest = max(scanned, key=lambda m: m.last_scanned_at) if scanned else survivor
+        noisy = any(m.expected_noisy for m in members)
         bind.execute(
             sa.text(
                 "UPDATE images SET ref=:ref, first_seen=:fs, "
-                "last_scanned_at=:ls, digest=:dg WHERE id=:id"
+                "last_scanned_at=:ls, digest=:dg, expected_noisy=:noisy WHERE id=:id"
             ),
             {
                 "ref": canon,
                 "fs": first_seen,
                 "ls": newest.last_scanned_at,
                 "dg": newest.digest,
+                "noisy": noisy,
                 "id": survivor.id,
             },
         )
