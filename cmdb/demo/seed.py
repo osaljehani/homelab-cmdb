@@ -31,8 +31,10 @@ _TAGS: dict[str, list[str]] = {
 }
 
 # Image (canonical ref, matched via startswith on the trivy ArtifactName) that
-# gets flagged as expected_noisy at the end of the seed.
-_NOISY_IMAGE_REF = "grafana/grafana:11.2.0"
+# gets flagged as expected_noisy at the end of the seed. A registry-only image
+# so the dashboard's running-image severity counts stay unfiltered (grafana's
+# CRITICAL belongs in the headline, not excluded as noisy).
+_NOISY_IMAGE_REF = "home-assistant/home-assistant:2024.10"  # canonical ref (registry host stripped)
 
 # rho is deliberately left stale (CMDB_STALE_DAYS defaults to 7).
 _STALE_HOSTNAME = "rho"
