@@ -8,6 +8,8 @@ dist/
 *.db
 # Trivy scan JSONs imported by the image-scan pipeline — real homelab vuln data
 data/scans/
+# cmdb export snapshots — whole-DB dumps of real homelab data
+data/exports/
 .superpowers/
 CLAUDE.md
 .remember/
