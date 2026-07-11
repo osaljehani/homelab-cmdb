@@ -60,7 +60,8 @@ hostnames, IPs, and usernames. Those can't be published. The split:
 ## Code layout
 
 Business logic lives in `cmdb/domain/services/`; the CLI (`cmdb/cli/`) and web app (`cmdb/web/`)
-are thin shells over it. See `CLAUDE.md` for more on architecture if you use Claude Code.
+are thin shells over it. See the README's "Project layout" section for the full breakdown, and
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
 ## Questions
 

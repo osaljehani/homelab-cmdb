@@ -13,7 +13,7 @@ A clear description of the incorrect behavior.
 
 **Version / commit**
 
-Output of `cmdb --version` or the git commit you're on.
+Git commit (`git rev-parse --short HEAD`) or Docker image tag you're running.
 
 **How is it deployed?**
 

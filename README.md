@@ -122,6 +122,9 @@ docker compose up
 ```
 
 The web UI is available at http://localhost:8080. The database persists in `./data/cmdb.db`.
+After the first release, `docker compose pull cmdb` fetches the prebuilt image — otherwise
+`docker compose up` builds it locally, since the compose file has both `image:` and `build:`
+and only pulls when the image is absent.
 
 ### Local
 
