@@ -145,6 +145,7 @@ class ImageSummaryOut(_ORMModel):
     stale: bool = False
     deployment_status: str | None = None  # "running" | "registry-only"
     running_on: list[str] = []  # "host/container" placements
+    scan_host: str | None = None  # raw envelope host label of the latest scan
 
 
 class VulnerabilityOut(_ORMModel):

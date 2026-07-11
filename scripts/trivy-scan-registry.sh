@@ -13,7 +13,13 @@
 # Flow: list repos+tags via the registry's OCI catalog -> query CVEs per image via
 # the registry's GraphQL search API -> transform each response into a native
 # `trivy image --format json` report -> wrap all reports in the CMDB envelope ->
-# run `cmdb import trivy` -> prune.
+# feed to CMDB -> prune.
+#
+# Two feed modes (cmdb_feed), same as trivy-scan.sh:
+#   exec (default) — `cmdb import trivy` inside the local CMDB container.
+#   http           — POST the envelope to a (remote) CMDB's /import/upload/trivy.
+#                    Use when the registry host does not run the CMDB container;
+#                    cmdb_data_dir is then just a local spool/retention dir.
 #
 # Envelope contract (identical to the runtime scan — see docs/image-scanning.md):
 #   { "host": ..., "scanned_at": ..., "trivy_version": ..., "images": [<trivy report>...] }
@@ -41,6 +47,8 @@ ENV_FILE="${ENV_FILE:-/etc/homelabcmdb-registry-scan.env}"
 : "${cmdb_container:=homelabcmdb-cmdb-1}"
 : "${cmdb_data_dir:=./data}"
 : "${cmdb_cmd:=uv run cmdb}"
+: "${cmdb_feed:=exec}"                             # exec | http (see feed modes above)
+: "${cmdb_url:=}"                                  # CMDB base URL for cmdb_feed=http
 : "${trivy_version:=registry-embedded}"
 : "${scan_retention_days:=14}"
 
@@ -50,6 +58,13 @@ die() { echo "[$(date -u +%FT%TZ)] ERROR: $*" >&2; exit 1; }
 command -v jq >/dev/null || die "jq not installed"
 command -v curl >/dev/null || die "curl not installed"
 [[ -n "$zot_pass" ]] || die "zot_pass is empty (set it in $ENV_FILE)"
+
+# Validate the feed mode up front so a misconfiguration fails before querying ----
+case "$cmdb_feed" in
+  exec) ;;
+  http) [[ -n "$cmdb_url" ]] || die "cmdb_url is empty (e.g. http://cmdb.example.lan:8080)" ;;
+  *) die "unknown cmdb_feed '${cmdb_feed}' (exec|http)" ;;
+esac
 
 # curl helper — always authenticated + CA-pinned --------------------------------
 CURL=(curl -fsS --cacert "$zot_cacert" -u "${zot_user}:${zot_pass}")
@@ -150,10 +165,20 @@ jq -s \
   "$reports" > "$out"
 log "wrote ${out}"
 
-# Feed it into CMDB (path is relative to the container's /data mount) ------------
-# shellcheck disable=SC2086
-docker exec "$cmdb_container" $cmdb_cmd import trivy "/data/scans/${ts}.json" \
-  || die "cmdb import failed (container ${cmdb_container})"
+# Feed it into CMDB -------------------------------------------------------------
+case "$cmdb_feed" in
+  exec)
+    # Path is relative to the container's /data mount.
+    # shellcheck disable=SC2086
+    docker exec "$cmdb_container" $cmdb_cmd import trivy "/data/scans/${ts}.json" \
+      || die "cmdb import failed (container ${cmdb_container})"
+    ;;
+  http)
+    # The upload endpoint is unauthenticated — keep the CMDB port LAN/tailnet-only.
+    curl -fsS -F "files=@${out}" "${cmdb_url%/}/import/upload/trivy" >/dev/null \
+      || die "cmdb http import failed (${cmdb_url})"
+    ;;
+esac
 
 # Prune raw envelopes; the DB retains full history ------------------------------
 find "$scan_dir" -maxdepth 1 -type f -name '*.json' -mtime "+${scan_retention_days}" -delete

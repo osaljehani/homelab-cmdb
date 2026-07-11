@@ -153,6 +153,10 @@ class ImageScan(Base):
     # (zot registry scan of containerd-pulled images). Derived from the scan
     # envelope on import; nullable for rows imported before this column existed.
     source = Column(String)
+    # Raw envelope "host" label — which machine/scanner produced the run.
+    # Provenance only, distinct from the derived `source`; nullable for rows
+    # imported before this column existed or envelopes that omit it.
+    host = Column(String)
     import_log_id = Column(Integer, ForeignKey("import_logs.id"), nullable=True)
     critical = Column(Integer, default=0)
     high = Column(Integer, default=0)

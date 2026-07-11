@@ -55,6 +55,7 @@ def _ingest_report(
     scanned_at: datetime,
     trivy_version: str | None,
     source: str | None,
+    host: str | None,
     import_log_id: int | None,
 ) -> int:
     """Ingest one trivy `image --format json` report. Returns the vuln count."""
@@ -80,6 +81,7 @@ def _ingest_report(
         scanned_at=scanned_at,
         trivy_version=trivy_version,
         source=source,
+        host=host,
         import_log_id=import_log_id,
     )
     session.add(scan)
@@ -127,11 +129,10 @@ def import_scan_run(
 
     scanned_at = _parse_ts(envelope.get("scanned_at"))
     trivy_version = envelope.get("trivy_version")
+    host = envelope.get("host")
     # Prefer an explicit envelope "source" if the scanner declares one; otherwise
     # derive docker-vs-kubernetes from the host label / trivy_version.
-    source = envelope.get("source") or _derive_source(
-        envelope.get("host"), trivy_version
-    )
+    source = envelope.get("source") or _derive_source(host, trivy_version)
 
     imgs = 0
     vulns = 0
@@ -139,7 +140,7 @@ def import_scan_run(
     for i, report in enumerate(images):
         try:
             vulns += _ingest_report(
-                session, report, scanned_at, trivy_version, source, import_log_id
+                session, report, scanned_at, trivy_version, source, host, import_log_id
             )
             imgs += 1
         except Exception as exc:  # noqa: BLE001 - collected, non-fatal
