@@ -50,10 +50,10 @@ surface several of these are low effort because the data is already there.
 - **Read-only REST/JSON API** `/api/v1/{hosts,containers,clusters,images,vuln-summary}`
   (GET-only), sharing the MCP server's Pydantic models via `cmdb/domain/schemas.py`;
   OpenAPI docs at `/docs`. Unauthenticated by design — LAN/tailnet-only deployments.
-
-## Medium effort
-
-1. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
+- **Export / restore** `cmdb export` (JSON/YAML, metadata-generic over all tables, records
+  the alembic revision) and `cmdb restore` into an empty, matching-revision DB (`--force`
+  wipes first; no merge semantics). Also downloadable from the Generate page. Positioning:
+  portability/inspection — `cp data/cmdb.db` is the real backup.
 
 ## Larger / future
 

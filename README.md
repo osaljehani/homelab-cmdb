@@ -51,6 +51,9 @@ creating duplicates.
 - **Read-only JSON API** `GET /api/v1/{hosts,containers,clusters,images,vuln-summary}` for
   scripting and dashboards, using the same response models as the MCP server. Interactive
   docs at `/docs`. Unauthenticated, like the rest of the app — keep the port LAN-only.
+- **Export / restore** dump the whole CMDB to JSON/YAML (`cmdb export`, or download from the
+  Generate page) and restore it into an empty database (`cmdb restore`). Portability and
+  inspection — copying `data/cmdb.db` remains the real backup.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
@@ -231,6 +234,9 @@ uv run cmdb hosts show <hostname>    # show host detail
 uv run cmdb hosts history <hostname> # show a host's change history (field diffs)
 uv run cmdb hosts tag <hostname> <tag>     # add a tag
 uv run cmdb hosts untag <hostname> <tag>   # remove a tag
+uv run cmdb hosts note <hostname> [TEXT]   # show or set a freeform note (--clear to remove)
+uv run cmdb hosts set-field <hostname> <key> <value>   # set a custom field
+uv run cmdb hosts unset-field <hostname> <key>         # remove a custom field
 
 uv run cmdb import ansible <path>    # import hosts from Ansible facts (file or directory)
 uv run cmdb import docker <path>     # import containers from docker-export.sh JSON
@@ -245,6 +251,9 @@ uv run cmdb collect all [-i PATH] [--limit HOST]        # all collectors in one 
 
 uv run cmdb generate inventory --format yaml|ini   # generate Ansible inventory
 uv run cmdb generate ssh-config                    # generate SSH config
+
+uv run cmdb export [PATH] [--format yaml]  # dump the whole CMDB to JSON/YAML (stdout by default)
+uv run cmdb restore <PATH> [--force]       # restore a dump into an empty DB (--force wipes first)
 
 uv run cmdb serve                    # start the web UI
 uv run cmdb mcp                      # start the MCP server (stdio) for LLM clients

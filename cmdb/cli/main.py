@@ -1,6 +1,7 @@
 import typer
 
 from cmdb.cli import hosts, import_, collect, k8s, generate, db as db_cli, images
+from cmdb.cli import export as export_cli
 from cmdb.config import settings
 
 app = typer.Typer(name="cmdb", help="Homelab CMDB", no_args_is_help=True)
@@ -11,6 +12,8 @@ app.add_typer(k8s.app, name="k8s")
 app.add_typer(generate.app, name="generate")
 app.add_typer(db_cli.app, name="db")
 app.add_typer(images.app, name="images")
+app.command("export")(export_cli.export_cmd)
+app.command("restore")(export_cli.restore_cmd)
 
 
 @app.command("serve")
