@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from cmdb.web.deps import STATIC_DIR
 from cmdb.web.routes import (
+    api,
     dashboard,
     hosts,
     containers,
@@ -42,3 +43,4 @@ app.include_router(images.router, prefix="/images")
 app.include_router(search.router, prefix="/search")
 app.include_router(topology.router, prefix="/topology")
 app.include_router(network.router, prefix="/network")
+app.include_router(api.router, prefix="/api/v1", tags=["api"])
