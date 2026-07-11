@@ -1,0 +1,9 @@
+{
+  "host": "atlas",
+  "containers": [
+    {"name": "nginx", "image": "nginx:1.27", "status": "Up 3 weeks", "state": "running", "ports": "0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp"},
+    {"name": "postgres", "image": "postgres:16.4", "status": "Up 3 weeks", "state": "running", "ports": "127.0.0.1:5432->5432/tcp"},
+    {"name": "grafana", "image": "grafana/grafana:11.2.0", "status": "Up 3 weeks", "state": "running", "ports": "", "compose_project": "monitoring"},
+    {"name": "prometheus", "image": "prom/prometheus:v2.54.1", "status": "Up 3 weeks", "state": "running", "ports": "", "compose_project": "monitoring"}
+  ]
+}

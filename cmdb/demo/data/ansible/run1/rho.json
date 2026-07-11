@@ -1,0 +1,48 @@
+{
+  "ansible_facts": {
+    "ansible_hostname": "rho",
+    "ansible_fqdn": "rho.example.lan",
+    "ansible_machine_id": "demo00060000000000000000000006",
+    "ansible_system_vendor": "Example Systems",
+    "ansible_product_name": "MicroServer Demo",
+    "ansible_product_version": "1.0",
+    "ansible_product_serial": "SN-DEMO-0006",
+    "ansible_form_factor": "Tower",
+    "ansible_os_family": "Debian",
+    "ansible_distribution": "Debian",
+    "ansible_distribution_version": "12",
+    "ansible_distribution_release": "bookworm",
+    "ansible_kernel": "6.1.0-21-amd64",
+    "ansible_pkg_mgr": "apt",
+    "ansible_architecture": "x86_64",
+    "ansible_processor": ["0", "AuthenticAMD", "AMD Ryzen Embedded R1505G"],
+    "ansible_processor_cores": 2,
+    "ansible_processor_vcpus": 4,
+    "ansible_memtotal_mb": 8192,
+    "ansible_virtualization_type": "NA",
+    "ansible_virtualization_role": "NA",
+    "ansible_service_mgr": "systemd",
+    "ansible_uptime_seconds": 2592000,
+    "ansible_fips": false,
+    "ansible_bios_vendor": "Example BIOS",
+    "ansible_bios_version": "1.1.0",
+    "ansible_bios_date": "06/01/2023",
+    "ansible_board_vendor": "Example Systems",
+    "ansible_board_name": "MicroServer Board",
+    "ansible_board_serial": "BRD-DEMO-0006",
+    "ansible_default_ipv4": {
+      "address": "203.0.113.29",
+      "interface": "eth0",
+      "macaddress": "02:00:5e:00:00:15",
+      "gateway": "203.0.113.1"
+    },
+    "ansible_apparmor": {"status": "disabled"},
+    "ansible_selinux": {"status": "disabled"},
+    "ansible_devices": {
+      "sda": {"model": "Demo HDD 8TB", "size": "7.28 TB", "rotational": "1"}
+    },
+    "ansible_mounts": [
+      {"mount": "/", "device": "/dev/sda1", "fstype": "ext4", "size_total": 8001563222016, "size_available": 2001563222016}
+    ]
+  }
+}

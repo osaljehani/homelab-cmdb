@@ -1,0 +1,16 @@
+{
+  "cluster": "meridian",
+  "description": "Demo Kubernetes cluster",
+  "nodes": [
+    {"hostname": "hydra", "role": "control-plane"},
+    {"hostname": "orion", "role": "worker"},
+    {"hostname": "lyra", "role": "worker"}
+  ],
+  "namespaces": ["default", "kube-system", "media", "home-automation"],
+  "workloads": [
+    {"namespace": "home-automation", "pod_name": "home-assistant-0", "container_name": "home-assistant", "image": "ghcr.io/home-assistant/home-assistant:2024.10"},
+    {"namespace": "media", "pod_name": "jellyfin-6f9d8c7b5-abcde", "container_name": "jellyfin", "image": "jellyfin/jellyfin:10.9.11"},
+    {"namespace": "media", "pod_name": "redis-7d6f8c9b4-fghij", "container_name": "redis", "image": "redis:7.4"},
+    {"namespace": "kube-system", "pod_name": "traefik-5c8b7d9f6-klmno", "container_name": "traefik", "image": "traefik:v3.1"}
+  ]
+}
