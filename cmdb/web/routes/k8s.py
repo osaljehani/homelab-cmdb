@@ -6,7 +6,7 @@ from cmdb.domain.models import K8sNodeRole
 from cmdb.domain.services.hosts import list_hosts
 from cmdb.domain.services.k8s import (
     add_cluster, add_node, delete_cluster,
-    list_clusters, list_nodes, remove_node,
+    list_clusters, remove_node,
 )
 from cmdb.web.deps import templates, get_db_dep
 

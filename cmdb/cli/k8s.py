@@ -88,5 +88,5 @@ def node_remove(hostname: str, cluster: str, yes: bool = typer.Option(False, "--
     if ok:
         console.print(f"[green]Removed '{hostname}' from '{cluster}'[/green]")
     else:
-        console.print(f"[red]Node not found[/red]")
+        console.print("[red]Node not found[/red]")
         raise typer.Exit(1)
