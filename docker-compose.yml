@@ -1,5 +1,6 @@
 services:
   cmdb:
+    image: ghcr.io/osaljehani/homelab-cmdb:latest
     build: .
     ports:
       - "8080:8080"
