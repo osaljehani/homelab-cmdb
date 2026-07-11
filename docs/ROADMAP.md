@@ -1,7 +1,8 @@
 # HomeLabCMDB Roadmap
 
-Prioritized feature ideas. The data model already captures a lot that the UI does not yet
-surface several of these are low effort because the data is already there.
+All small- and medium-effort roadmap items have shipped; what remains is the
+larger/future list at the bottom. Delivered entries are kept here as a feature
+changelog with pointers into the code.
 
 ## Delivered
 
@@ -25,10 +26,15 @@ surface several of these are low effort because the data is already there.
   stored with history, displayed in web/CLI/MCP. (Host-side scan-images.sh + timer live in
   host-config.)
 - **Image UI — stale badge + targeted delete** A non-destructive "stale" badge on `/images` and
-  the image detail page (image not in the newest scan run, via `images.is_stale` /
-  `images.newest_scan_time` — single-rule first cut, per-source scoping deferred), plus a confirmed
-  per-image **Remove** button that reuses `images.delete_image`. No auto-deletion. Design:
+  the image detail page, plus a confirmed per-image **Remove** button that reuses
+  `images.delete_image`. No auto-deletion. Staleness is computed **per scan source**
+  (`images.source_watermarks` / `is_stale`): an image is stale only when it missed the newest
+  run of every source that scans it. Design:
   [`docs/design/images-stale-badge-and-delete.md`](design/images-stale-badge-and-delete.md).
+- **Scan provenance + remote scan feed** The envelope `host` label is persisted per scan
+  (`ImageScan.host`, shown in scan history and MCP), and both example scan scripts support
+  `cmdb_feed=exec|http` so hosts that don't run the CMDB container can POST envelopes to
+  `/import/upload/trivy`. See [`docs/image-scanning.md`](image-scanning.md).
 - **Stale-host health** `dashboard.fleet_freshness` buckets hosts by data age (fresh/stale/never)
   from `Host.last_seen`, surfaced on the dashboard with a `CMDB_STALE_DAYS` threshold.
 - **Dependency / topology graph** `/topology` Cytoscape visualizer
@@ -57,8 +63,8 @@ surface several of these are low effort because the data is already there.
 
 ## Larger / future
 
-6. **Package & version inventory (CVE-aware)** Track installed packages per host; highlight
+1. **Package & version inventory (CVE-aware)** Track installed packages per host; highlight
    hosts needing security updates.
-7. **Authentication** Optional login before exposing the UI beyond localhost.
-8. **Agentless live collection** _Delivered for facts + Docker + K8s (see above)._ Remaining:
+2. **Authentication** Optional login before exposing the UI beyond localhost.
+3. **Agentless live collection** _Delivered for facts + Docker + K8s (see above)._ Remaining:
    scheduled/background runs and concurrent-run locking.
