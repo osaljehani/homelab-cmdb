@@ -44,9 +44,24 @@ NODES=$(kubectl get nodes $CTX_FLAG -o json | jq '[
 
 NAMESPACES=$(kubectl get namespaces $CTX_FLAG -o json | jq '[.items[].metadata.name]')
 
+# Running pods -> workload rows (one per container) for image placements.
+WORKLOADS=$(kubectl get pods -A $CTX_FLAG -o json | jq '[
+  .items[]
+  | select(.status.phase == "Running")
+  | . as $p
+  | .spec.containers[]
+  | {
+      namespace: $p.metadata.namespace,
+      pod_name: $p.metadata.name,
+      container_name: .name,
+      image: .image
+    }
+]')
+
 jq -n \
   --arg cluster  "$CLUSTER_NAME" \
   --arg desc     "$DESCRIPTION" \
   --argjson nodes "$NODES" \
   --argjson ns    "$NAMESPACES" \
-  '{cluster: $cluster, description: $desc, nodes: $nodes, namespaces: $ns}'
+  --argjson wl    "$WORKLOADS" \
+  '{cluster: $cluster, description: $desc, nodes: $nodes, namespaces: $ns, workloads: $wl}'

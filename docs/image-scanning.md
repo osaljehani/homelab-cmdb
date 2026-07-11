@@ -8,6 +8,17 @@ no scheduler, poller, or watcher inside CMDB — scans are always pushed in.
 This page documents the contract and ships example automation so you can wire up your
 own scanning pipeline.
 
+## Where an image runs
+
+Scanned images are matched back to the inventory two ways: Docker containers
+join on the container's image ref, and Kubernetes pods join on the pod-spec
+image collected by `cmdb collect k8s` (`kubectl get pods -A`), which shows the
+real cluster/namespace/pod instead of a generic "registry only" badge. Both
+joins use canonical refs, so registry-host/`library/`/tag spelling differences
+don't matter. One known gap: pods that pin an image **by digest only**
+(`repo@sha256:…`, no tag) are recorded but not matched — defaulting them to
+`:latest` could point at a different build.
+
 ## Mental model: the images view is scan-driven
 
 The **Containers**/host inventory (from Ansible/Docker/K8s collection) and the
