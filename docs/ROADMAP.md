@@ -47,12 +47,13 @@ surface several of these are low effort because the data is already there.
 - **Storage / disk facts** Parsed on read from `raw_facts` (`services/storage.py`, no
   schema change): host-detail Storage card (devices + mounts with used-space bars) and a
   dashboard low-free-space warnings panel (`CMDB_STORAGE_WARN_PCT`, default 85).
+- **Read-only REST/JSON API** `/api/v1/{hosts,containers,clusters,images,vuln-summary}`
+  (GET-only), sharing the MCP server's Pydantic models via `cmdb/domain/schemas.py`;
+  OpenAPI docs at `/docs`. Unauthenticated by design — LAN/tailnet-only deployments.
 
 ## Medium effort
 
-1. **Read-only REST/JSON API** Expose hosts/containers/clusters as JSON (FastAPI makes this
-   trivial) for scripting and dashboards.
-2. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
+1. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
 
 ## Larger / future
 

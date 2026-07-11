@@ -22,7 +22,7 @@ from cmdb.domain.services import (
     k8s as k8s_svc,
     security as security_svc,
 )
-from cmdb.mcp.schemas import (
+from cmdb.domain.schemas import (
     ChangeOut,
     HostDetailOut,
     HostHistoryEntry,
@@ -34,6 +34,8 @@ from cmdb.mcp.schemas import (
     PostureOut,
     PostureSummaryOut,
     VulnSummaryOut,
+    image_summary_out,
+    running_on,
 )
 
 mcp = FastMCP("HomeLabCMDB")
@@ -273,36 +275,8 @@ def import_ansible(path: str) -> dict:
 # --- Image vulnerabilities --------------------------------------------------
 
 
-def _running_on(row: dict) -> list[str]:
-    docker = [
-        f"{p['host'] or '?'}/{p['name']}" for p in row["deployments"]["docker"]
-    ]
-    kubernetes = [
-        f"{p['cluster'] or '?'}/{p['namespace']}/{p['pod']}"
-        for p in row["deployments"]["kubernetes"]
-    ]
-    return docker + kubernetes
-
-
-def _image_summary(session, image, row: dict | None = None) -> ImageSummaryOut:
-    if row is None:
-        row = images_svc.image_status(session, image)
-    scan = row["scan"]
-    return ImageSummaryOut(
-        ref=image.ref,
-        expected_noisy=image.expected_noisy,
-        digest=image.digest,
-        last_scanned_at=image.last_scanned_at,
-        critical=scan.critical if scan else 0,
-        high=scan.high if scan else 0,
-        medium=scan.medium if scan else 0,
-        low=scan.low if scan else 0,
-        total=scan.total if scan else 0,
-        stale=row["stale"],
-        deployment_status=row["status"],
-        running_on=_running_on(row),
-        scan_host=scan.host if scan else None,
-    )
+_running_on = running_on
+_image_summary = image_summary_out
 
 
 @mcp.tool()

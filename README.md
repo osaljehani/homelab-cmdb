@@ -48,6 +48,9 @@ creating duplicates.
 - **Generate** Ansible inventory (YAML/INI) and SSH config from your inventory.
 - **MCP server** query and manage the CMDB from LLM clients (Claude Code, Claude Desktop)
   via a Model Context Protocol server over stdio. See below.
+- **Read-only JSON API** `GET /api/v1/{hosts,containers,clusters,images,vuln-summary}` for
+  scripting and dashboards, using the same response models as the MCP server. Interactive
+  docs at `/docs`. Unauthenticated, like the rest of the app — keep the port LAN-only.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features.
 
