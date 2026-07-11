@@ -1,13 +1,16 @@
 {# Render an image's deployment status. `dep` is images_svc.deployments():
-   {"docker": [{"host", "name"}, ...], "source": "docker"|"kubernetes"|None,
-    "status": "running"|"registry-only"}.
-   Docker placements resolve to a real host/container; anything without a
-   running container is registry-only (k8s images fall back to a generic
-   runtime tag until per-cluster mapping lands). #}
+   {"docker": [{"host", "name"}, ...],
+    "kubernetes": [{"cluster", "namespace", "pod", "container"}, ...],
+    "source": "docker"|"kubernetes"|None, "status": "running"|"registry-only"}.
+   Docker placements resolve to a real host/container, kubernetes placements to
+   a cluster/namespace/pod; anything without either is registry-only. #}
 {% macro deployment_badges(dep) %}
   {%- if dep and dep.status == 'running' -%}
     {%- for p in dep.docker -%}
       <span class="badge badge-loc" title="Running as a Docker container on {{ p.host or 'unknown host' }}">{{ p.host or '?' }} / {{ p.name }}</span>
+    {%- endfor -%}
+    {%- for p in dep.kubernetes -%}
+      <span class="badge badge-loc" title="Running as pod {{ p.namespace }}/{{ p.pod }} in cluster {{ p.cluster or 'unknown' }}">{{ p.cluster or '?' }} / {{ p.namespace }}/{{ p.pod }}</span>
     {%- endfor -%}
   {%- elif dep and dep.source == 'kubernetes' -%}
     <span class="badge" title="Only seen in the zot registry (pulled by a Kubernetes/containerd node); no running container matches">registry only</span>

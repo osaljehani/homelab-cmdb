@@ -34,6 +34,10 @@ surface several of these are low effort because the data is already there.
 - **Dependency / topology graph** `/topology` Cytoscape visualizer
   (`cmdb/domain/services/topology.py`): hosts ↔ containers ↔ compose projects ↔ clusters ↔
   images ↔ subnets ↔ tailnet, with severity coloring and toggleable layers.
+- **Precise K8s image placement** `k8s_workloads` (pods collected via
+  `kubectl get pods -A` in `cmdb collect k8s` or `scripts/k8s-export.sh`) joins scanned
+  images to real cluster/namespace/pod placements; a k8s-running image now counts as
+  "running" across web/CLI/MCP instead of the generic "registry only" badge.
 
 ## Medium effort
 

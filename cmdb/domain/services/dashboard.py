@@ -20,6 +20,7 @@ _IMPORT_COUNTERS = (
     "k8s_clusters_upserted",
     "k8s_nodes_upserted",
     "k8s_namespaces_upserted",
+    "k8s_workloads_upserted",
     "tailscale_services_upserted",
     "listening_ports_upserted",
     "images_scanned",

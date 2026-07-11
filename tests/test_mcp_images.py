@@ -95,6 +95,37 @@ def test_image_tools_expose_stale_and_deployment_status(seeded, monkeypatch):
     assert roll.registry_only.images == 0
 
 
+def test_k8s_workload_placement_in_running_on(seeded, monkeypatch):
+    from contextlib import contextmanager
+    import cmdb.mcp.server as server
+    from cmdb.domain.models import K8sCluster, K8sWorkload
+
+    @contextmanager
+    def _fake_session():
+        yield seeded
+
+    monkeypatch.setattr(server, "get_session", _fake_session)
+
+    cluster = K8sCluster(name="demo-cluster")
+    seeded.add(cluster)
+    seeded.flush()
+    seeded.add(
+        K8sWorkload(
+            cluster_id=cluster.id,
+            namespace="web",
+            pod_name="nginx-abc",
+            container_name="main",
+            image="nginx:latest",
+            image_canonical="nginx:latest",
+        )
+    )
+    seeded.flush()
+
+    s = next(x for x in server.list_image_scans() if x.ref == "nginx:latest")
+    assert s.deployment_status == "running"
+    assert "demo-cluster/web/nginx-abc" in s.running_on
+
+
 def test_image_summary_exposes_scan_host(seeded, monkeypatch):
     from contextlib import contextmanager
     import cmdb.mcp.server as server

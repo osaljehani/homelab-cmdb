@@ -133,9 +133,49 @@ def test_list_shows_status_and_stale_columns(db, tmp_path, monkeypatch):
 
     r = runner.invoke(app, ["images", "list"])
     assert r.exit_code == 0, r.output
-    nginx_line = next(l for l in r.output.splitlines() if "nginx:latest" in l)
-    old_line = next(l for l in r.output.splitlines() if "old:1" in l)
+    nginx_line = next(ln for ln in r.output.splitlines() if "nginx:latest" in ln)
+    old_line = next(ln for ln in r.output.splitlines() if "old:1" in ln)
     assert "running" in nginx_line
     assert "registry-only" in old_line
     assert "yes" in old_line  # stale: dropped from the newest docker run
     assert "yes" not in nginx_line
+
+
+def test_list_marks_k8s_only_image_running(db, tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    from rich.console import Console
+
+    from cmdb.domain.models import K8sCluster, K8sWorkload
+
+    @contextmanager
+    def _fake_session():
+        yield db
+
+    monkeypatch.setattr("cmdb.cli.import_.get_session", _fake_session)
+    monkeypatch.setattr("cmdb.cli.images.get_session", _fake_session)
+    monkeypatch.setattr("cmdb.cli.images.console", Console(width=200))
+
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps(_envelope_at("2026-07-01T04:00:00Z", ["portfolio:0.0.1"])))
+    runner.invoke(app, ["import", "trivy", str(f)])
+
+    cluster = K8sCluster(name="demo-cluster")
+    db.add(cluster)
+    db.flush()
+    db.add(
+        K8sWorkload(
+            cluster_id=cluster.id,
+            namespace="web",
+            pod_name="portfolio-abc",
+            container_name="main",
+            image="portfolio:0.0.1",
+            image_canonical="portfolio:0.0.1",
+        )
+    )
+    db.flush()
+
+    r = runner.invoke(app, ["images", "list"])
+    assert r.exit_code == 0, r.output
+    line = next(ln for ln in r.output.splitlines() if "portfolio:0.0.1" in ln)
+    assert "running" in line and "registry-only" not in line

@@ -274,9 +274,14 @@ def import_ansible(path: str) -> dict:
 
 
 def _running_on(row: dict) -> list[str]:
-    return [
+    docker = [
         f"{p['host'] or '?'}/{p['name']}" for p in row["deployments"]["docker"]
     ]
+    kubernetes = [
+        f"{p['cluster'] or '?'}/{p['namespace']}/{p['pod']}"
+        for p in row["deployments"]["kubernetes"]
+    ]
+    return docker + kubernetes
 
 
 def _image_summary(session, image, row: dict | None = None) -> ImageSummaryOut:

@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from cmdb.domain.models import Container, Image, ImageScan
+from cmdb.domain.models import Container, Image, ImageScan, K8sWorkload
 from cmdb.domain.refs import canonical_ref
 
 
@@ -78,31 +78,62 @@ def container_placements(session: Session) -> dict[str, list[dict]]:
     return placements
 
 
-def _deployment(image: Image, scan: ImageScan | None, placements: dict) -> dict:
+def k8s_placements(session: Session) -> dict[str, list[dict]]:
+    """Canonical image ref -> k8s workload placements, in one pass.
+
+    ``image_canonical`` is computed at import (NULL for digest-only refs), so
+    the join to ``Image.ref`` mirrors :func:`container_placements`.
+    """
+    placements: dict[str, list[dict]] = {}
+    for w in session.query(K8sWorkload).all():
+        if not w.image_canonical:
+            continue
+        placements.setdefault(w.image_canonical, []).append(
+            {
+                "cluster": w.cluster.name if w.cluster else None,
+                "namespace": w.namespace,
+                "pod": w.pod_name,
+                "container": w.container_name,
+            }
+        )
+    return placements
+
+
+def _deployment(
+    image: Image, scan: ImageScan | None, placements: dict, k8s: dict
+) -> dict:
     docker = placements.get(image.ref, [])
+    kubernetes = k8s.get(image.ref, [])
     return {
         "docker": docker,
+        "kubernetes": kubernetes,
         "source": scan.source if scan else None,
-        "status": "running" if docker else "registry-only",
+        "status": "running" if (docker or kubernetes) else "registry-only",
     }
 
 
 def deployments(
-    session: Session, image: Image, placements: dict | None = None
+    session: Session,
+    image: Image,
+    placements: dict | None = None,
+    k8s: dict | None = None,
 ) -> dict:
     """Where an image is deployed.
 
     Docker placements come from :func:`container_placements` (running
-    containers only); pass a precomputed map when iterating many images.
-    Kubernetes images are not yet mapped to a cluster/namespace, so the latest
-    scan's ``source`` doubles as a generic runtime tag.
+    containers only), kubernetes placements from :func:`k8s_placements`
+    (Running pods); pass precomputed maps when iterating many images. An image
+    counts as running when either runtime references it.
 
-    Returns ``{"docker": [{"host", "name"}, ...], "source": <str|None>,
-    "status": "running"|"registry-only"}``.
+    Returns ``{"docker": [{"host", "name"}, ...],
+    "kubernetes": [{"cluster", "namespace", "pod", "container"}, ...],
+    "source": <str|None>, "status": "running"|"registry-only"}``.
     """
     if placements is None:
         placements = container_placements(session)
-    return _deployment(image, latest_scan(session, image), placements)
+    if k8s is None:
+        k8s = k8s_placements(session)
+    return _deployment(image, latest_scan(session, image), placements, k8s)
 
 
 def _overview_row(
@@ -111,8 +142,9 @@ def _overview_row(
     latest_by_source: dict[str | None, datetime],
     watermarks: dict[str | None, datetime],
     placements: dict,
+    k8s: dict,
 ) -> dict:
-    dep = _deployment(image, scan, placements)
+    dep = _deployment(image, scan, placements, k8s)
     return {
         "image": image,
         "scan": scan,
@@ -133,6 +165,7 @@ def image_overview(session: Session, include_noisy: bool = True) -> list[dict]:
     Rows are sorted noisy-last, then running-first, critical desc, ref.
     """
     placements = container_placements(session)
+    k8s = k8s_placements(session)
     watermarks = source_watermarks(session)
     latest_scan_by_image: dict[int, ImageScan] = {}
     latest_by_image_source: dict[int, dict[str | None, datetime]] = {}
@@ -148,6 +181,7 @@ def image_overview(session: Session, include_noisy: bool = True) -> list[dict]:
             latest_by_image_source.get(image.id, {}),
             watermarks,
             placements,
+            k8s,
         )
         for image in list_images(session, include_noisy=include_noisy)
     ]
@@ -173,6 +207,7 @@ def image_status(session: Session, image: Image) -> dict:
         latest_by_source,
         source_watermarks(session),
         container_placements(session),
+        k8s_placements(session),
     )
 
 

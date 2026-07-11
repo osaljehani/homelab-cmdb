@@ -59,6 +59,8 @@ echo "__NODES__"
 $KUBECTL get nodes -o json
 echo "__NAMESPACES__"
 $KUBECTL get namespaces -o json
+echo "__PODS__"
+$KUBECTL get pods -A -o json
 """
 
 # kubeconfig contexts too generic to use as a CMDB cluster name; fall back to the
@@ -207,18 +209,25 @@ def collect_facts(
 def _parse_k8s_blob(stdout: str) -> dict[str, str] | None:
     """Split the probe's marker-delimited stdout into its parts.
 
-    Returns ``{context, nodes_raw, ns_raw}`` for a control-plane host, or ``None`` when
-    the host is not a control-plane (no ``__NODES__``/``__NAMESPACES__`` markers).
+    Returns ``{context, nodes_raw, ns_raw, pods_raw}`` for a control-plane host, or
+    ``None`` when the host is not a control-plane (no ``__NODES__``/``__NAMESPACES__``
+    markers). ``pods_raw`` is ``""`` for older probes without a ``__PODS__`` section.
     """
     if "__NODES__" not in stdout or "__NAMESPACES__" not in stdout:
         return None
     head, _, rest = stdout.partition("__NODES__")
-    nodes_raw, _, ns_raw = rest.partition("__NAMESPACES__")
+    nodes_raw, _, rest = rest.partition("__NAMESPACES__")
+    ns_raw, _, pods_raw = rest.partition("__PODS__")
     context = ""
     for line in head.splitlines():
         if line.startswith("context="):
             context = line[len("context="):].strip()
-    return {"context": context, "nodes_raw": nodes_raw.strip(), "ns_raw": ns_raw.strip()}
+    return {
+        "context": context,
+        "nodes_raw": nodes_raw.strip(),
+        "ns_raw": ns_raw.strip(),
+        "pods_raw": pods_raw.strip(),
+    }
 
 
 def _parse_ts_blob(stdout: str) -> dict[str, str] | None:
@@ -253,7 +262,7 @@ def collect_k8s(
         result = _run(_ansible_cmd(inv, limit, "shell", _K8S_PROBE_CMD, tree))
         inv_label = _inventory_label(inventory, inv)
 
-        clusters = nodes = namespaces = 0
+        clusters = nodes = namespaces = workloads = 0
         errors: list[str] = []
         tree_files = _tree_files(tree)
         for f in tree_files:
@@ -280,13 +289,20 @@ def collect_k8s(
                 inv_host if context.lower() in _GENERIC_K8S_CONTEXTS else context
             )
             try:
+                # pods_raw="" (older probe) leaves the workloads key out, so a
+                # previous collection's rows are never wiped by a probe that
+                # didn't gather pods.
                 cluster_data = parse_kubectl_json(
-                    blob["nodes_raw"], blob["ns_raw"], cluster_name
+                    blob["nodes_raw"],
+                    blob["ns_raw"],
+                    cluster_name,
+                    pods_raw=blob["pods_raw"] or None,
                 )
                 counts = import_cluster(session, cluster_data)
                 clusters += counts["clusters"]
                 nodes += counts["nodes"]
                 namespaces += counts["namespaces"]
+                workloads += counts["workloads"]
                 errors.extend(f"{inv_host}: {e}" for e in counts["errors"])
             except Exception as exc:
                 errors.append(f"{inv_host}: {exc}")
@@ -308,6 +324,7 @@ def collect_k8s(
         k8s_clusters_upserted=clusters,
         k8s_nodes_upserted=nodes,
         k8s_namespaces_upserted=namespaces,
+        k8s_workloads_upserted=workloads,
         notes="\n".join(errors) or None,
     )
     session.add(log)

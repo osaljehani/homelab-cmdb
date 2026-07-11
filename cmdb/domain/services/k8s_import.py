@@ -1,11 +1,13 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import ImportLog, ImportSource, K8sCluster, K8sNamespace
-from cmdb.domain.models import K8sNodeRole
+from cmdb.domain.models import K8sNodeRole, K8sWorkload
+from cmdb.domain.refs import canonical_ref
 from cmdb.domain.services.k8s import add_cluster, add_node
 
 
@@ -42,11 +44,14 @@ def parse_kubectl_json(
     ns_raw: str,
     cluster_name: str,
     description: str | None = None,
+    pods_raw: str | None = None,
 ) -> dict[str, Any]:
-    """Turn raw ``kubectl get nodes/namespaces -o json`` into an import_cluster dict.
+    """Turn raw ``kubectl get nodes/namespaces/pods -o json`` into an import_cluster dict.
 
     Done in Python rather than with jq on the remote so hosts without jq (e.g. k3s
-    nodes) can still be collected.
+    nodes) can still be collected. ``pods_raw`` is optional (older probes don't
+    emit it); when absent the returned dict has no "workloads" key, which tells
+    :func:`import_cluster` to leave existing workload rows untouched.
     """
     nodes_doc = json.loads(nodes_raw)
     ns_doc = json.loads(ns_raw)
@@ -65,12 +70,100 @@ def parse_kubectl_json(
         if item.get("metadata", {}).get("name")
     ]
 
-    return {
+    result = {
         "cluster": cluster_name,
         "description": description,
         "nodes": nodes,
         "namespaces": namespaces,
     }
+    if pods_raw:
+        result["workloads"] = parse_pods_json(pods_raw)
+    return result
+
+
+def parse_pods_json(pods_raw: str) -> list[dict[str, str]]:
+    """Turn raw ``kubectl get pods -A -o json`` into workload rows.
+
+    Only Running pods count — placements answer "where is this image running",
+    and Succeeded/Failed pods are noise. One row per (pod, container).
+    """
+    doc = json.loads(pods_raw)
+    rows: list[dict[str, str]] = []
+    for item in doc.get("items", []):
+        meta = item.get("metadata", {})
+        namespace, pod_name = meta.get("namespace"), meta.get("name")
+        if not namespace or not pod_name:
+            continue
+        if (item.get("status") or {}).get("phase") != "Running":
+            continue
+        for c in (item.get("spec") or {}).get("containers") or []:
+            image = c.get("image")
+            if not image:
+                continue
+            rows.append(
+                {
+                    "namespace": namespace,
+                    "pod_name": pod_name,
+                    "container_name": c.get("name") or "",
+                    "image": image,
+                }
+            )
+    return rows
+
+
+def _canonical_or_none(image: str) -> str | None:
+    """canonical_ref(), except digest-only refs get no join key.
+
+    ``repo@sha256:...`` without a tag would canonicalize to ``repo:latest``,
+    fabricating a match against a possibly different build — worse than no
+    match. Refs with both tag and digest canonicalize fine (digest stripped).
+    """
+    if "@" in image:
+        base = image.split("@", 1)[0]
+        if ":" not in base.rsplit("/", 1)[-1]:
+            return None
+    return canonical_ref(image)
+
+
+def _replace_workloads(
+    session: Session, cluster: K8sCluster, rows: list[dict[str, Any]]
+) -> int:
+    """Replace the cluster's workload rows with the given snapshot."""
+    session.query(K8sWorkload).filter_by(cluster_id=cluster.id).delete()
+    now = datetime.utcnow()
+    count = 0
+    for r in rows:
+        namespace, pod_name, image = (
+            r.get("namespace"),
+            r.get("pod_name"),
+            r.get("image"),
+        )
+        if not namespace or not pod_name or not image:
+            continue
+        session.add(
+            K8sWorkload(
+                cluster_id=cluster.id,
+                namespace=namespace,
+                pod_name=pod_name,
+                container_name=r.get("container_name") or "",
+                image=image,
+                image_canonical=_canonical_or_none(image),
+                last_seen=now,
+            )
+        )
+        count += 1
+    session.flush()
+    return count
+
+
+def import_workloads(
+    session: Session, cluster_name: str, rows: list[dict[str, Any]]
+) -> int:
+    """Replace a named cluster's workloads (see :func:`_replace_workloads`)."""
+    cluster = session.query(K8sCluster).filter_by(name=cluster_name).first()
+    if cluster is None:
+        raise ValueError(f"cluster '{cluster_name}' not found")
+    return _replace_workloads(session, cluster, rows)
 
 
 def _normalise_namespaces(raw: list[Any]) -> list[str]:
@@ -125,6 +218,14 @@ def import_cluster(session: Session, data: dict[str, Any]) -> dict[str, Any]:
             session.add(K8sNamespace(cluster_id=cluster.id, name=ns_name))
             namespaces_upserted += 1
 
+    # Replace workloads only when the record carries the key: an absent key
+    # (older export files / probes) must never wipe a previous collection.
+    workloads_upserted = 0
+    if "workloads" in data:
+        workloads_upserted = _replace_workloads(
+            session, cluster, data.get("workloads") or []
+        )
+
     session.flush()
 
     return {
@@ -132,6 +233,7 @@ def import_cluster(session: Session, data: dict[str, Any]) -> dict[str, Any]:
         "nodes": nodes_upserted,
         "nodes_failed": nodes_failed,
         "namespaces": namespaces_upserted,
+        "workloads": workloads_upserted,
         "errors": errors,
     }
 
@@ -143,6 +245,7 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
     total_clusters = 0
     total_nodes = 0
     total_namespaces = 0
+    total_workloads = 0
     all_errors: list[str] = []
 
     for f in files:
@@ -161,6 +264,7 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
                 total_clusters += counts["clusters"]
                 total_nodes += counts["nodes"]
                 total_namespaces += counts["namespaces"]
+                total_workloads += counts["workloads"]
                 all_errors.extend(f"{label}: {e}" for e in counts["errors"])
             except Exception as exc:
                 all_errors.append(f"{label}: {exc}")
@@ -173,6 +277,7 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
         k8s_clusters_upserted=total_clusters,
         k8s_nodes_upserted=total_nodes,
         k8s_namespaces_upserted=total_namespaces,
+        k8s_workloads_upserted=total_workloads,
         notes="\n".join(all_errors) or None,
     )
     session.add(log)

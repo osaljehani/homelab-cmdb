@@ -3,7 +3,15 @@ from datetime import datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from cmdb.domain.models import Container, Host, Image, ImageScan, Vulnerability
+from cmdb.domain.models import (
+    Container,
+    Host,
+    Image,
+    ImageScan,
+    K8sCluster,
+    K8sWorkload,
+    Vulnerability,
+)
 from cmdb.domain.services import images as images_svc
 
 
@@ -187,6 +195,7 @@ def test_deployments_unscanned_image_has_no_source(db: Session):
     img = _img(db, "unscanned:1")
     assert images_svc.deployments(db, img) == {
         "docker": [],
+        "kubernetes": [],
         "source": None,
         "status": "registry-only",
     }
@@ -291,6 +300,70 @@ def test_deployments_matches_tagless_container_to_latest_image(db: Session):
     )  # docker ps is tagless
     dep = images_svc.deployments(db, img)
     assert dep["docker"] == [{"host": "testhost", "name": "homelabcmdb-cmdb-1"}]
+
+
+def _k8s_workload(db, cluster_name, ns, pod, image_canonical, container="main"):
+    cluster = db.query(K8sCluster).filter_by(name=cluster_name).first()
+    if cluster is None:
+        cluster = K8sCluster(name=cluster_name)
+        db.add(cluster)
+        db.flush()
+    db.add(
+        K8sWorkload(
+            cluster_id=cluster.id,
+            namespace=ns,
+            pod_name=pod,
+            container_name=container,
+            image=image_canonical or "pinned@sha256:abc",
+            image_canonical=image_canonical,
+        )
+    )
+    db.flush()
+
+
+def test_deployments_k8s_workload_marks_running_with_placement(db: Session):
+    img = _img(db, "portfolio:0.0.1")
+    _scan_with_source(db, img, "kubernetes")
+    _k8s_workload(db, "demo-cluster", "web", "portfolio-abc", "portfolio:0.0.1")
+    dep = images_svc.deployments(db, img)
+    assert dep["status"] == "running"
+    assert dep["kubernetes"] == [
+        {
+            "cluster": "demo-cluster",
+            "namespace": "web",
+            "pod": "portfolio-abc",
+            "container": "main",
+        }
+    ]
+
+
+def test_deployments_digest_only_workload_does_not_match(db: Session):
+    img = _img(db, "portfolio:0.0.1")
+    _scan_with_source(db, img, "kubernetes")
+    _k8s_workload(db, "demo-cluster", "web", "pinned-abc", None)
+    dep = images_svc.deployments(db, img)
+    assert dep["kubernetes"] == []
+    assert dep["status"] == "registry-only"
+
+
+def test_image_overview_k8s_only_image_is_running(db: Session):
+    img = _img(db, "portfolio:0.0.1")
+    _scan_with_source(db, img, "kubernetes")
+    _k8s_workload(db, "demo-cluster", "web", "portfolio-abc", "portfolio:0.0.1")
+    row = next(
+        r for r in images_svc.image_overview(db) if r["image"].ref == "portfolio:0.0.1"
+    )
+    assert row["status"] == "running"
+
+
+def test_vuln_summary_counts_k8s_only_image_as_running(db: Session):
+    img = _img(db, "portfolio:0.0.1", scans=[(datetime(2026, 7, 3), 1, 2)])
+    _k8s_workload(db, "demo-cluster", "web", "portfolio-abc", "portfolio:0.0.1")
+    assert img is not None
+    roll = images_svc.vuln_summary(db)
+    assert roll["running"]["critical"] == 1
+    assert roll["running"]["scanned_images"] == 1
+    assert roll["registry_only"]["images"] == 0
 
 
 def test_vuln_summary_excludes_noisy_and_uses_latest(db: Session):
