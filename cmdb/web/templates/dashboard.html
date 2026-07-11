@@ -42,18 +42,21 @@
         <a href="/images" class="btn btn-sm btn-secondary">View images</a>
       </div>
       <p class="text-muted" style="font-size:.85rem;margin-top:.35rem;">
-        Latest scan per image · noisy excluded
+        Latest scan per running image · noisy &amp; registry-only excluded
       </p>
       <p style="font-size:.85rem;margin:.75rem 0 .25rem;">
         Running · {{ vuln_summary.running.scanned_images }}/{{ vuln_summary.running.images }} images scanned
       </p>
       {{ severity_bar(vuln_summary.running) }}
-      <p style="font-size:.85rem;margin:1rem 0 .25rem;">
-        Registry-only · {{ vuln_summary.registry_only.scanned_images }}/{{ vuln_summary.registry_only.images }} images scanned
+      {% if vuln_summary.registry_only.images %}
+      <p class="text-muted" style="font-size:.8rem;margin:.75rem 0 0;">
+        {{ vuln_summary.registry_only.images }} registry-only image{{ 's' if vuln_summary.registry_only.images != 1 }} excluded ·
+        <a href="/images">view on Images</a>
       </p>
-      {{ severity_bar(vuln_summary.registry_only) }}
+      {% endif %}
       <div style="margin-top:1.25rem;">
         {{ sparkline(vuln_trend) }}
+        <p class="text-muted" style="font-size:.75rem;margin:.35rem 0 0;">30-day trend · running images</p>
       </div>
     </div>
 

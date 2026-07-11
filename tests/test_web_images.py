@@ -300,13 +300,15 @@ def test_images_tabs_filter_running_and_registry_only(db):
         app.dependency_overrides.clear()
 
 
-def test_dashboard_splits_running_and_registry_summary(db):
+def test_dashboard_tracks_running_and_notes_registry_only_exclusion(db):
     client = _client(db)
     try:
         _upload(client, _envelope())
         r = client.get("/")
         assert r.status_code == 200
-        assert "Running" in r.text
-        assert "Registry-only" in r.text
+        assert "Running ·" in r.text
+        # Registry-only images get a muted exclusion note, not a severity bar.
+        assert "Registry-only ·" not in r.text
+        assert "registry-only image" in r.text
     finally:
         app.dependency_overrides.clear()

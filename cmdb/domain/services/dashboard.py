@@ -65,24 +65,32 @@ def fleet_freshness(
 
 
 def vuln_trend(
-    session: Session, days: int = 30, now: datetime | None = None
+    session: Session,
+    days: int = 30,
+    now: datetime | None = None,
+    image_ids: set[int] | None = None,
 ) -> list[dict]:
     """Fleet-wide severity totals per day, over the last `days` days.
 
     One point per day that has at least one scan; each point sums, per
     non-noisy image, the latest scan on-or-before that day. O(days x images),
     fine at homelab scale.
+
+    `image_ids` restricts the trend to those images (None means all). Running
+    status is a current-state property, so a trend filtered to the running set
+    reflects today's placements — a stopped container's history drops out.
     """
     now = now or datetime.utcnow()
     window_start = now - timedelta(days=days)
-    scans = (
+    q = (
         session.query(ImageScan)
         .join(Image)
         .filter(Image.expected_noisy.is_(False))
         .filter(ImageScan.scanned_at >= window_start)
-        .order_by(ImageScan.scanned_at)
-        .all()
     )
+    if image_ids is not None:
+        q = q.filter(ImageScan.image_id.in_(image_ids))
+    scans = q.order_by(ImageScan.scanned_at).all()
     if not scans:
         return []
 

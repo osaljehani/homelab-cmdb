@@ -95,6 +95,31 @@ class TestVulnTrend:
     def test_empty_db(self, db):
         assert vuln_trend(db, now=NOW) == []
 
+    def test_image_ids_filter_limits_points_to_given_images(self, db):
+        running = Image(ref="app:1", first_seen=NOW)
+        registry = Image(ref="reg:1", first_seen=NOW)
+        db.add_all([running, registry])
+        db.flush()
+        db.add_all(
+            [
+                ImageScan(image_id=running.id, scanned_at=NOW - timedelta(days=2), critical=1, total=1),
+                ImageScan(image_id=registry.id, scanned_at=NOW - timedelta(days=2), critical=7, total=7),
+            ]
+        )
+        db.commit()
+        points = vuln_trend(db, days=30, now=NOW, image_ids={running.id})
+        assert len(points) == 1
+        assert points[0]["critical"] == 1
+        assert points[0]["total"] == 1
+
+    def test_image_ids_empty_set_yields_no_points(self, db):
+        img = Image(ref="app:1", first_seen=NOW)
+        db.add(img)
+        db.flush()
+        db.add(ImageScan(image_id=img.id, scanned_at=NOW - timedelta(days=2), critical=1, total=1))
+        db.commit()
+        assert vuln_trend(db, days=30, now=NOW, image_ids=set()) == []
+
 
 class TestRecentChanges:
     def test_merges_snapshots_and_imports_desc(self, db):

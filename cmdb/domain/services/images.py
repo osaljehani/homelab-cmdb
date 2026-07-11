@@ -99,6 +99,14 @@ def k8s_placements(session: Session) -> dict[str, list[dict]]:
     return placements
 
 
+def running_image_ids(session: Session) -> set[int]:
+    """IDs of images referenced by a running container or k8s workload."""
+    refs = set(container_placements(session)) | set(k8s_placements(session))
+    if not refs:
+        return set()
+    return {i for (i,) in session.query(Image.id).filter(Image.ref.in_(refs))}
+
+
 def _deployment(
     image: Image, scan: ImageScan | None, placements: dict, k8s: dict
 ) -> dict:
