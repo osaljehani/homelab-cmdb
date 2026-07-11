@@ -13,6 +13,7 @@ from cmdb.domain.services.dashboard import (
 from cmdb.domain.services.security import posture_summary
 from cmdb.domain.services.images import vuln_summary
 from cmdb.domain.services.network import network_map
+from cmdb.domain.services.storage import fleet_storage
 from cmdb.web.deps import templates, get_db_dep
 
 router = APIRouter()
@@ -44,5 +45,9 @@ def dashboard(request: Request, db: Session = Depends(get_db_dep)):
             "stale_days": settings.stale_days,
             "network_subnets": len(nm["subnets"]),
             "network_warnings": len(nm["duplicate_ips"]) + len(nm["duplicate_macs"]),
+            "storage_warnings": fleet_storage(
+                db, warn_pct=settings.storage_warn_pct
+            )["warnings"],
+            "storage_warn_pct": settings.storage_warn_pct,
         },
     )

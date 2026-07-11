@@ -301,6 +301,7 @@ just test                        # run the full suite via the justfile
 | `CMDB_PORT` | `8080` | Port for the web server |
 | `CMDB_SECRET_KEY` | `change-me-in-production` | Session secret set to a random value in production |
 | `CMDB_STALE_DAYS` | `7` | Days without fresh facts before a host counts as stale on the dashboard |
+| `CMDB_STORAGE_WARN_PCT` | `85` | Used-space percentage at which a mount appears in the dashboard storage warnings |
 | `CMDB_ANSIBLE_INVENTORY` | _(unset)_ | Fixed Ansible inventory path; overrides DB generation when set |
 | `CMDB_ANSIBLE_USER` | _(unset)_ | SSH user injected into the generated inventory |
 | `CMDB_SSH_PRIVATE_KEY` | _(unset)_ | SSH private key path injected into the generated inventory |

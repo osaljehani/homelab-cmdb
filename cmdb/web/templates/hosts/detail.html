@@ -85,6 +85,51 @@
   {% include "hosts/_custom_fields.html" %}
 </div>
 
+{% if storage.mounts or storage.devices %}
+<div class="card">
+  <h2>Storage</h2>
+  {% if storage.devices %}
+  <table style="margin-bottom:1rem;">
+    <thead><tr><th>Device</th><th>Model</th><th>Size</th><th>Type</th></tr></thead>
+    <tbody>
+      {% for d in storage.devices %}
+      <tr>
+        <td><strong>{{ d.name }}</strong></td>
+        <td class="text-muted" style="font-size:.85rem;">{{ d.model or ' ' }}</td>
+        <td>{{ d.size or ' ' }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ 'HDD' if d.rotational else 'SSD' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if storage.mounts %}
+  <table>
+    <thead><tr><th>Mount</th><th>Device</th><th>FS</th><th>Size</th><th>Free</th><th style="width:30%;">Used</th></tr></thead>
+    <tbody>
+      {% for m in storage.mounts %}
+      <tr>
+        <td><strong>{{ m.mount }}</strong></td>
+        <td class="text-muted" style="font-size:.85rem;">{{ m.device or ' ' }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ m.fstype or ' ' }}</td>
+        <td>{{ m.size_total | filesizeformat }}</td>
+        <td>{{ m.size_available | filesizeformat }}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <div style="flex:1;height:.5rem;border-radius:.25rem;background:color-mix(in srgb, currentColor 12%, transparent);overflow:hidden;">
+              <div style="height:100%;width:{{ m.used_pct }}%;background:{{ 'var(--danger, #e5484d)' if m.used_pct >= storage_warn_pct else 'var(--accent, #f5a524)' }};"></div>
+            </div>
+            <span style="font-size:.8rem;{% if m.used_pct >= storage_warn_pct %}font-weight:600;{% endif %}">{{ m.used_pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if host.containers %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">

@@ -44,14 +44,15 @@ surface several of these are low effort because the data is already there.
 - **Network / subnet map** `/network` groups hosts by /24 (`services/network.py`,
   single owner of the subnet heuristic shared with topology), shows per-subnet gateway
   and members, flags duplicate IPs/MACs, plus a dashboard summary line.
+- **Storage / disk facts** Parsed on read from `raw_facts` (`services/storage.py`, no
+  schema change): host-detail Storage card (devices + mounts with used-space bars) and a
+  dashboard low-free-space warnings panel (`CMDB_STORAGE_WARN_PCT`, default 85).
 
 ## Medium effort
 
-1. **Storage / disk facts** Parse `ansible_devices`/`ansible_mounts` from `raw_facts`;
-   capacity per host and low-free-space flags.
-2. **Read-only REST/JSON API** Expose hosts/containers/clusters as JSON (FastAPI makes this
+1. **Read-only REST/JSON API** Expose hosts/containers/clusters as JSON (FastAPI makes this
    trivial) for scripting and dashboards.
-3. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
+2. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
 
 ## Larger / future
 

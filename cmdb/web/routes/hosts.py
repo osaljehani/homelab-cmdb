@@ -11,7 +11,9 @@ from cmdb.domain.services.hosts import (
     set_custom_field,
     set_notes,
 )
+from cmdb.config import settings
 from cmdb.domain.services.history import host_history
+from cmdb.domain.services.storage import host_storage
 from cmdb.web.deps import templates, get_db_dep
 
 router = APIRouter()
@@ -66,6 +68,8 @@ def host_detail(request: Request, hostname: str, db: Session = Depends(get_db_de
             "host": host,
             "raw_pretty": raw_pretty,
             "history": host_history(db, host),
+            "storage": host_storage(host),
+            "storage_warn_pct": settings.storage_warn_pct,
         },
     )
 
