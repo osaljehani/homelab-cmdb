@@ -15,3 +15,16 @@ services:
       - CMDB_ANSIBLE_USER=${ANSIBLE_USER}
       - CMDB_SSH_PRIVATE_KEY=/run/secrets/ssh_key
     restart: unless-stopped
+
+  # Demo mode: a populated fictional fleet, no setup required.
+  #   docker compose --profile demo up cmdb-demo
+  # Uses its own DB path (/tmp/cmdb-demo.db, in-container only — not the
+  # ./data volume) so it can never touch a real cmdb.db.
+  cmdb-demo:
+    build: .
+    profiles: ["demo"]
+    ports:
+      - "8080:8080"
+    environment:
+      - CMDB_DB_PATH=/tmp/cmdb-demo.db
+    entrypoint: ["uv", "run", "cmdb", "demo", "--host", "0.0.0.0", "--db", "/tmp/cmdb-demo.db"]
