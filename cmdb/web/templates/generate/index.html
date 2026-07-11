@@ -34,5 +34,16 @@
     </div>
     <pre>{{ ssh_config }}</pre>
   </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+      <h2 style="margin:0;">CMDB export</h2>
+      <a href="/generate/download/cmdb.json" class="btn btn-sm">Download</a>
+    </div>
+    <p class="text-muted" style="font-size:.85rem;margin:0;">
+      Whole-database JSON dump for portability and inspection — restore with
+      <code>cmdb restore</code> into an empty database. For backups, copy
+      <code>data/cmdb.db</code> instead.
+    </p>
+  </div>
 </div>
 {% endblock %}
