@@ -38,6 +38,9 @@ surface several of these are low effort because the data is already there.
   `kubectl get pods -A` in `cmdb collect k8s` or `scripts/k8s-export.sh`) joins scanned
   images to real cluster/namespace/pod placements; a k8s-running image now counts as
   "running" across web/CLI/MCP instead of the generic "registry only" badge.
+- **Freeform notes + custom fields per host** Operator-maintained `notes` and key/value
+  `custom_fields` on Host — never touched by imports. Editable inline on host detail
+  (HTMX), via `cmdb hosts note|set-field|unset-field`, and exposed in MCP `get_host`.
 
 ## Medium effort
 
@@ -48,7 +51,6 @@ surface several of these are low effort because the data is already there.
 3. **Read-only REST/JSON API** Expose hosts/containers/clusters as JSON (FastAPI makes this
    trivial) for scripting and dashboards.
 4. **Export / backup** Dump the whole CMDB to YAML/JSON and restore it.
-5. **Freeform notes per host** A markdown notes field plus arbitrary key/value custom fields.
 
 ## Larger / future
 

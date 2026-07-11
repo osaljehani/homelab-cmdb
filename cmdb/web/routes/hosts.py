@@ -2,7 +2,15 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 import json
 
-from cmdb.domain.services.hosts import list_hosts, get_host, add_tag, remove_tag
+from cmdb.domain.services.hosts import (
+    add_tag,
+    get_host,
+    list_hosts,
+    remove_custom_field,
+    remove_tag,
+    set_custom_field,
+    set_notes,
+)
 from cmdb.domain.services.history import host_history
 from cmdb.web.deps import templates, get_db_dep
 
@@ -90,3 +98,57 @@ def host_remove_tag(
     remove_tag(db, hostname, tag_name)
     host = get_host(db, hostname)
     return templates.TemplateResponse(request, "hosts/_tag_list.html", {"host": host})
+
+
+@router.post("/{hostname}/notes")
+def host_set_notes(
+    request: Request,
+    hostname: str,
+    notes: str = Form(""),
+    db: Session = Depends(get_db_dep),
+):
+    try:
+        host = set_notes(db, hostname, notes)
+    except ValueError:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request, "hosts/_notes.html", {"host": host, "saved": True}
+    )
+
+
+@router.post("/{hostname}/fields")
+def host_set_field(
+    request: Request,
+    hostname: str,
+    key: str = Form(...),
+    value: str = Form(""),
+    db: Session = Depends(get_db_dep),
+):
+    if not key.strip():
+        host = get_host(db, hostname)
+        if not host:
+            raise HTTPException(status_code=404)
+    else:
+        try:
+            host = set_custom_field(db, hostname, key, value)
+        except ValueError:
+            raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request, "hosts/_custom_fields.html", {"host": host}
+    )
+
+
+@router.delete("/{hostname}/fields/{key}")
+def host_remove_field(
+    request: Request,
+    hostname: str,
+    key: str,
+    db: Session = Depends(get_db_dep),
+):
+    try:
+        host = remove_custom_field(db, hostname, key)
+    except ValueError:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request, "hosts/_custom_fields.html", {"host": host}
+    )

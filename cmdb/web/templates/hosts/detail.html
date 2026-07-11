@@ -75,6 +75,16 @@
   {% include "hosts/_tag_list.html" %}
 </div>
 
+<div class="card">
+  <h2>Notes</h2>
+  {% include "hosts/_notes.html" %}
+</div>
+
+<div class="card">
+  <h2>Custom fields</h2>
+  {% include "hosts/_custom_fields.html" %}
+</div>
+
 {% if host.containers %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">

@@ -1,0 +1,33 @@
+<div id="custom-fields">
+  {% if host.custom_fields %}
+  <table>
+    <tbody>
+      {% for key, value in host.custom_fields | dictsort %}
+      <tr>
+        <th style="width:30%;">{{ key }}</th>
+        <td>{{ value }}</td>
+        <td style="width:2rem;text-align:right;">
+          <button
+            class="btn btn-sm btn-danger"
+            style="padding:.1rem .35rem;font-size:.7rem;"
+            hx-delete="/hosts/{{ host.hostname }}/fields/{{ key }}"
+            hx-target="#custom-fields"
+            hx-swap="outerHTML"
+          >×</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form
+    hx-post="/hosts/{{ host.hostname }}/fields"
+    hx-target="#custom-fields"
+    hx-swap="outerHTML"
+    style="display:inline"
+  >
+    <input type="text" name="key" placeholder="key" style="width:120px;">
+    <input type="text" name="value" placeholder="value" style="width:180px;">
+    <button type="submit" class="btn btn-sm">+</button>
+  </form>
+</div>

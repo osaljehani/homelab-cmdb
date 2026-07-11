@@ -1,0 +1,12 @@
+<div id="notes-card">
+  <form
+    hx-post="/hosts/{{ host.hostname }}/notes"
+    hx-target="#notes-card"
+    hx-swap="outerHTML"
+  >
+    <textarea name="notes" rows="4" style="width:100%;"
+      placeholder="Freeform notes for this host">{{ host.notes or '' }}</textarea>
+    <button type="submit" class="btn btn-sm" style="margin-top:.4rem;">Save notes</button>
+    {% if saved %}<span class="text-muted" style="font-size:.8rem;">saved</span>{% endif %}
+  </form>
+</div>
