@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # A host whose facts are at least this old counts as stale on the dashboard.
     stale_days: int = 7
 
+    # A mount at or above this used-space percentage appears in the dashboard
+    # storage warnings.
+    storage_warn_pct: int = 85
+
     # On-demand collection (agentless, via the `ansible` binary over SSH).
     # SSH user / key may also be set as inventory vars; these are convenience overrides.
     ansible_inventory: str | None = None

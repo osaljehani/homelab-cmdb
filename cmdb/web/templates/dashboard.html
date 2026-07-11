@@ -127,6 +127,28 @@
       {% endif %}
     </div>
 
+    {% if storage_warnings %}
+    <div class="card">
+      <h2>Storage warnings</h2>
+      <p class="text-muted" style="font-size:.85rem;margin-top:0;">
+        Mounts at {{ storage_warn_pct }}%+ used
+      </p>
+      <table>
+        <thead><tr><th>Host</th><th>Mount</th><th>Free</th><th>Used</th></tr></thead>
+        <tbody>
+          {% for w in storage_warnings %}
+          <tr class="row-link" onclick="location.href='/hosts/{{ w.hostname }}'">
+            <td><a href="/hosts/{{ w.hostname }}"><strong>{{ w.hostname }}</strong></a></td>
+            <td class="text-muted">{{ w.mount }}</td>
+            <td>{{ w.size_available | filesizeformat }}</td>
+            <td><span class="badge badge-red">{{ w.used_pct }}%</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
     <div class="card">
       <h2>Recent changes</h2>
       {% if changes %}
