@@ -59,7 +59,8 @@ demo uses a throwaway database in your temp directory; **your real `cmdb.db` is 
 - **Interactive topology graph.** See the whole lab at once: compose-nested containers, K8s
   clusters, subnets, the tailnet, and exposure rings for listening ports and serve/funnel.
 - **Fully offline.** Fonts, HTMX, and Cytoscape are vendored — no CDN, no outbound calls. Charts
-  are server-rendered SVG, no JS chart library.
+  are server-rendered SVG, no JS chart library. Graphite terminal-style dark theme, with a light
+  theme included.
 - **LLM-native.** A 23-tool MCP server lets you ask Claude "what's stale?" or "what's exposed?"
   against your live inventory.
 
@@ -362,7 +363,7 @@ just test                        # run the full suite via the justfile
 The real, fixture-bearing `test_*.py` files live only on the maintainer's machine — they carry
 real homelab hostnames, IPs, and usernames and are gitignored, never committed. What CI runs (and
 what ships in this repo) is the committed test suite plus scrubbed `*-example.py` copies with
-purely fictional fixture data (`testhost` / `192.0.2.x`-style). On a fresh clone, each
+purely fictional fixture data (`testhost` / `192.168.1.10`-style placeholders). On a fresh clone, each
 `tests/*-example.py` is materialized into its `tests/*.py` counterpart — see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). **Contributions must use fictional data
 only** (fictional hostnames, RFC 5737 IPs like `192.0.2.x`, `example.lan` domains).
@@ -390,7 +391,7 @@ only** (fictional hostnames, RFC 5737 IPs like `192.0.2.x`, `example.lan` domain
 
 ```
 cmdb/
-  cli/          CLI entry points (thin shell over domain)
+  cli/          Typer CLI entry points (thin shell over domain)
   web/          FastAPI routes and Jinja2 templates (thin shell over domain)
     static/     Vendored assets (fonts, htmx, cytoscape) refresh via scripts/vendor-assets.sh
   mcp/          MCP server exposing domain services as tools (thin shell over domain)
