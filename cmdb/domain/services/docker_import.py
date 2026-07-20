@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Container, Host, ImportLog, ImportSource
+from cmdb.domain.services.vuln_snapshots import write_daily_snapshot
 
 
 def _parse_labels(raw: Any) -> dict[str, str]:
@@ -112,5 +113,8 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
         notes="\n".join(all_errors) or None,
     )
     session.add(log)
+    # Placements changed: refresh today's vuln snapshot so the dashboard trend
+    # reflects the new running set immediately (past days stay frozen).
+    write_daily_snapshot(session)
     session.flush()
     return log

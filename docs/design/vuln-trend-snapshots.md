@@ -29,9 +29,10 @@ snapshots only. Key properties:
   because the rewrite simply no longer sees it.
 - Snapshot classification comes from `image_overview()` — the same placement logic as
   `vuln_summary` — so the trend and the severity card can't disagree about what "running" means.
-- Write points: trivy `import_from_path` (single choke point for CLI + web upload), plus a
-  today-only refresh in `delete_image()` and `set_noisy()` so both remediation surfaces update
-  the chart immediately.
+- Write points: trivy `import_from_path` (single choke point for CLI + web upload); a
+  today-only refresh in `delete_image()` and `set_noisy()`; and (added same day, see below)
+  Docker/K8s inventory imports and `/collect` runs, so a stopped or replaced container moves
+  today's point at the next collection instead of waiting for the nightly scan.
 - The introducing migration **backfills** from existing `image_scans` history (raw SQL — no ORM
   imports in a mid-chain migration; fresh-DB replay must not depend on future columns), using
   current placement flags as the best available approximation of history. The service-layer
@@ -50,9 +51,12 @@ the scan JSON on disk remains the forensic record.
   more useful for debugging and equally immutable.
 - **Aggregate-only daily rows** (one fleet-wide row/day) — cheaper, but can't retro-filter by
   noisy/running or explain which image moved a point.
-- **Hooking Docker/K8s inventory imports** — placement changes would update snapshots sooner,
-  but inventory imports run far more often than scans and the flags self-correct at the next
-  daily trivy import; not worth the churn.
+- ~~**Hooking Docker/K8s inventory imports**~~ — initially rejected (inventory imports run far
+  more often than scans, and the flags self-correct at the next daily trivy import). **Reversed
+  the same day**: the actual remediation loop is *remediate → /collect → look at the chart*, and
+  a day of lag there defeats the point. The refresh is a today-only rewrite over a homelab-sized
+  image set, so the churn concern was theoretical. Hooked: `docker_import.import_from_path`,
+  `k8s_import.import_from_path`, `collect.collect_docker`, `collect.collect_k8s`.
 - **Soft-delete flag on images** — keeps `/images` clean only by adding a second notion of
   deleted; the earlier stale-badge design already rejected it, and it still wouldn't freeze
   history (flags mutate).

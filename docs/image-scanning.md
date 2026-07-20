@@ -46,9 +46,9 @@ the daily rollups survive.
 Semantics worth knowing:
 
 - Snapshots are written on **trivy import** (CLI or web upload) and refreshed for **today
-  only** when you delete an image or toggle its noisy flag. Inventory-only imports
-  (Docker/K8s collection) don't rewrite snapshots; a placement change is picked up at the
-  next scan import.
+  only** when you delete an image, toggle its noisy flag, or import Docker/K8s inventory
+  (file upload or a `/collect` run) — so stopping or replacing a container moves today's
+  trend point at the next collection, without waiting for the next scan.
 - Re-importing on the same day **replaces** that day's rows — no duplicates, and the last
   import of the day wins.
 - Days with no import simply have no point; the sparkline plots the points it has.

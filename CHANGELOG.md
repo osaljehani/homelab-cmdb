@@ -15,6 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   deleting the old image keeps past trend points intact while today's point drops immediately.
   The migration backfills the last 30 days from existing scan history automatically at startup;
   `cmdb db backfill-vuln-snapshots` re-runs the backfill after importing historical scan files.
+  Docker/K8s inventory imports and `/collect` runs also refresh today's snapshot, so a stopped
+  or replaced container moves today's trend point at the next collection.
 
 ### Changed
 
