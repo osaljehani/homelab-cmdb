@@ -3,6 +3,8 @@
 **Status:** delivered (2026-07-02)
 **Date:** 2026-07-02
 **Related:** builds on `cmdb images rm` CLI + `delete_image` MCP tool (commits `eb27c7e`, `04cdacd`).
+**Superseded in part** by `vuln-trend-snapshots.md` (2026-07-20): deleting an image no longer
+erases its past dashboard-trend points — daily rollups are snapshotted at import time.
 
 ## Problem
 

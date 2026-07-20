@@ -4,6 +4,7 @@ from enum import Enum
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -189,6 +190,34 @@ class Vulnerability(Base):
     target = Column(String)
 
     scan = relationship("ImageScan", back_populates="vulnerabilities")
+
+
+class VulnSnapshot(Base):
+    """Immutable daily severity rollup per scanned image, written at import time.
+
+    ``image_ref`` is a plain string — deliberately NOT an FK — so rows survive
+    image deletion. ``was_running``/``was_noisy`` freeze that day's
+    classification; the dashboard trend reads these instead of live-joining
+    current state, so deleting a remediated image drops today's point without
+    rewriting past ones.
+    """
+
+    __tablename__ = "vuln_snapshots"
+    __table_args__ = (UniqueConstraint("snapshot_date", "image_ref"),)
+
+    id = Column(Integer, primary_key=True)
+    snapshot_date = Column(Date, nullable=False, index=True)
+    image_ref = Column(String, nullable=False)
+    was_running = Column(Boolean, nullable=False, default=False)
+    was_noisy = Column(Boolean, nullable=False, default=False)
+    # Latest scan feeding this row (provenance).
+    scanned_at = Column(DateTime)
+    critical = Column(Integer, default=0)
+    high = Column(Integer, default=0)
+    medium = Column(Integer, default=0)
+    low = Column(Integer, default=0)
+    unknown = Column(Integer, default=0)
+    total = Column(Integer, default=0)
 
 
 class TailscaleService(Base):

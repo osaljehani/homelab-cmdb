@@ -99,14 +99,6 @@ def k8s_placements(session: Session) -> dict[str, list[dict]]:
     return placements
 
 
-def running_image_ids(session: Session) -> set[int]:
-    """IDs of images referenced by a running container or k8s workload."""
-    refs = set(container_placements(session)) | set(k8s_placements(session))
-    if not refs:
-        return set()
-    return {i for (i,) in session.query(Image.id).filter(Image.ref.in_(refs))}
-
-
 def _deployment(
     image: Image, scan: ImageScan | None, placements: dict, k8s: dict
 ) -> dict:
@@ -219,20 +211,31 @@ def image_status(session: Session, image: Image) -> dict:
     )
 
 
+def _refresh_today_snapshot(session: Session) -> None:
+    # Local import: vuln_snapshots imports image_overview from this module.
+    from cmdb.domain.services.vuln_snapshots import write_daily_snapshot
+
+    write_daily_snapshot(session)
+
+
 def set_noisy(session: Session, ref: str, value: bool) -> Image:
     image = get_image(session, ref)
     if image is None:
         raise ValueError(f"Image '{ref}' not found")
     image.expected_noisy = value
     session.flush()
+    _refresh_today_snapshot(session)
     return image
 
 
 def delete_image(session: Session, ref: str) -> dict:
-    """Delete an image and its entire scan history (scans + vulnerabilities).
+    """Delete an image and its scan rows (scans + per-CVE vulnerabilities).
 
     Returns the counts removed. Raises ValueError if the image is unknown.
     The ORM cascade (Image -> scans -> vulnerabilities) handles the children.
+    Daily rollups already captured in vuln_snapshots survive, so past trend
+    points keep this image's contribution; today's point is refreshed so a
+    remediation-by-delete shows the drop immediately.
     """
     image = get_image(session, ref)
     if image is None:
@@ -241,6 +244,7 @@ def delete_image(session: Session, ref: str) -> dict:
     vulns = sum(len(scan.vulnerabilities) for scan in image.scans)
     session.delete(image)
     session.flush()
+    _refresh_today_snapshot(session)
     return {"ref": ref, "scans": scans, "vulnerabilities": vulns}
 
 

@@ -50,7 +50,7 @@ def remove_image(
         False, "--yes", "-y", help="Skip the confirmation prompt"
     ),
 ) -> None:
-    """Delete an image and its entire scan history from the CMDB."""
+    """Delete an image and its per-CVE scan rows (daily trend totals are kept)."""
     with get_session() as session:
         image = images_svc.get_image(session, ref)
         if image is None:
@@ -58,7 +58,9 @@ def remove_image(
             raise typer.Exit(1)
         if not yes:
             typer.confirm(
-                f"Delete '{ref}' and all of its scan history?", abort=True
+                f"Delete '{ref}' and its per-CVE scan history? "
+                "(daily totals already in the vuln trend are kept)",
+                abort=True,
             )
         result = images_svc.delete_image(session, ref)
     console.print(

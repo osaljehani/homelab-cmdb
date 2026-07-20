@@ -56,11 +56,12 @@
 <div class="card">
   <h2>Remove image</h2>
   <p class="text-muted" style="font-size:.85rem;">
-    Deletes {{ image.ref }} and its entire scan history ({{ scans|length }} scans,
-    {{ vuln_count }} vulnerabilities). This cannot be undone.
+    Deletes {{ image.ref }} and its per-CVE scan history ({{ scans|length }} scans,
+    {{ vuln_count }} vulnerabilities). This cannot be undone. Daily totals already
+    captured in the dashboard vulnerability trend are kept.
   </p>
   <form action="/images/{{ image.ref }}/delete" method="post"
-        onsubmit="return confirm('Delete {{ image.ref }} and its entire scan history ({{ scans|length }} scans, {{ vuln_count }} vulnerabilities)? This cannot be undone.')">
+        onsubmit="return confirm('Delete {{ image.ref }} and its per-CVE scan history ({{ scans|length }} scans, {{ vuln_count }} vulnerabilities)? This cannot be undone; daily totals in the vuln trend are kept.')">
     <button type="submit" class="btn btn-danger">Remove image</button>
   </form>
 </div>

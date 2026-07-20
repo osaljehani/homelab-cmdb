@@ -27,6 +27,36 @@ The **Containers**/host inventory (from Ansible/Docker/K8s collection) and the
 if a container shows up in the inventory but not under Images, it simply hasn't been
 scanned yet — scan it (or wait for the next scheduled run) and it will appear.
 
+## Daily snapshots and the trend
+
+Every trivy import ends by writing one **daily snapshot row per scanned image** into
+`vuln_snapshots`: the latest scan's severity rollup (critical/high/medium/low/unknown/total)
+plus that day's classification — was the image running (Docker container or K8s pod) and was
+it flagged expected-noisy. The dashboard's 30-day vulnerability trend is computed from these
+rows (summing running, non-noisy images per day), **not** from live scan data.
+
+Why: the trend is history, and history shouldn't change when today's state does. Before
+snapshots, deleting a remediated image erased its contribution from *every past point* —
+the chart claimed the fleet "always was" at the lower count instead of showing the drop.
+Now deleting an image keeps its past daily totals (the snapshot rows are keyed by ref
+string, not a foreign key) while today's point is rewritten without it, so the remediation
+shows up as an immediate drop. Per-CVE findings for a deleted image are still gone — only
+the daily rollups survive.
+
+Semantics worth knowing:
+
+- Snapshots are written on **trivy import** (CLI or web upload) and refreshed for **today
+  only** when you delete an image or toggle its noisy flag. Inventory-only imports
+  (Docker/K8s collection) don't rewrite snapshots; a placement change is picked up at the
+  next scan import.
+- Re-importing on the same day **replaces** that day's rows — no duplicates, and the last
+  import of the day wins.
+- Days with no import simply have no point; the sparkline plots the points it has.
+- The migration that introduced `vuln_snapshots` backfills history from existing
+  `image_scans` rows using current running/noisy classification (historical placement was
+  never recorded). If you later import a batch of *historical* scan files, run
+  `cmdb db backfill-vuln-snapshots` to fill in any days that got scan rows but no snapshots.
+
 ## The envelope contract
 
 The single coupling point between any scanner and CMDB is one JSON file — the
