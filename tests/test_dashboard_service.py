@@ -3,8 +3,6 @@ from datetime import datetime, timedelta
 from cmdb.domain.models import (
     Host,
     HostSnapshot,
-    Image,
-    ImageScan,
     ImportLog,
     ImportSource,
 )
@@ -12,7 +10,6 @@ from cmdb.domain.services.dashboard import (
     fleet_freshness,
     os_breakdown,
     recent_changes,
-    vuln_trend,
 )
 
 NOW = datetime(2026, 7, 1, 12, 0, 0)
@@ -54,71 +51,6 @@ class TestFleetFreshness:
     def test_empty_db(self, db):
         f = fleet_freshness(db, now=NOW)
         assert f["total"] == 0 and f["stale_hosts"] == []
-
-
-class TestVulnTrend:
-    def test_daily_points_use_latest_scan_per_image(self, db):
-        img = Image(ref="app:1", first_seen=NOW)
-        db.add(img)
-        db.flush()
-        db.add_all(
-            [
-                ImageScan(image_id=img.id, scanned_at=NOW - timedelta(days=10), critical=5, high=2, total=7),
-                ImageScan(image_id=img.id, scanned_at=NOW - timedelta(days=2), critical=1, high=0, total=1),
-            ]
-        )
-        db.commit()
-        points = vuln_trend(db, days=30, now=NOW)
-        assert len(points) == 2
-        by_date = {p["date"]: p for p in points}
-        assert by_date[(NOW - timedelta(days=10)).date()]["critical"] == 5
-        # the later day reflects only the newest scan, not the sum of both
-        assert by_date[(NOW - timedelta(days=2)).date()]["critical"] == 1
-        assert by_date[(NOW - timedelta(days=2)).date()]["total"] == 1
-
-    def test_noisy_images_excluded(self, db):
-        img = Image(ref="noisy:1", first_seen=NOW, expected_noisy=True)
-        db.add(img)
-        db.flush()
-        db.add(ImageScan(image_id=img.id, scanned_at=NOW - timedelta(days=1), critical=9, total=9))
-        db.commit()
-        assert vuln_trend(db, days=30, now=NOW) == []
-
-    def test_scans_outside_window_ignored(self, db):
-        img = Image(ref="old:1", first_seen=NOW)
-        db.add(img)
-        db.flush()
-        db.add(ImageScan(image_id=img.id, scanned_at=NOW - timedelta(days=60), critical=3, total=3))
-        db.commit()
-        assert vuln_trend(db, days=30, now=NOW) == []
-
-    def test_empty_db(self, db):
-        assert vuln_trend(db, now=NOW) == []
-
-    def test_image_ids_filter_limits_points_to_given_images(self, db):
-        running = Image(ref="app:1", first_seen=NOW)
-        registry = Image(ref="reg:1", first_seen=NOW)
-        db.add_all([running, registry])
-        db.flush()
-        db.add_all(
-            [
-                ImageScan(image_id=running.id, scanned_at=NOW - timedelta(days=2), critical=1, total=1),
-                ImageScan(image_id=registry.id, scanned_at=NOW - timedelta(days=2), critical=7, total=7),
-            ]
-        )
-        db.commit()
-        points = vuln_trend(db, days=30, now=NOW, image_ids={running.id})
-        assert len(points) == 1
-        assert points[0]["critical"] == 1
-        assert points[0]["total"] == 1
-
-    def test_image_ids_empty_set_yields_no_points(self, db):
-        img = Image(ref="app:1", first_seen=NOW)
-        db.add(img)
-        db.flush()
-        db.add(ImageScan(image_id=img.id, scanned_at=NOW - timedelta(days=2), critical=1, total=1))
-        db.commit()
-        assert vuln_trend(db, days=30, now=NOW, image_ids=set()) == []
 
 
 class TestRecentChanges:

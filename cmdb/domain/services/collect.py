@@ -25,6 +25,7 @@ from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
 from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
 from cmdb.domain.services.k8s_import import import_cluster, parse_kubectl_json
+from cmdb.domain.services.vuln_snapshots import write_daily_snapshot
 from cmdb.domain.services.ports_import import import_ports, parse_ss
 from cmdb.domain.services.tailscale_import import import_tailscale, parse_tailscale_status
 
@@ -328,6 +329,9 @@ def collect_k8s(
         notes="\n".join(errors) or None,
     )
     session.add(log)
+    # Placements changed: refresh today's vuln snapshot so the dashboard trend
+    # reflects the new running set immediately (past days stay frozen).
+    write_daily_snapshot(session)
     session.flush()
     return log
 
@@ -408,6 +412,9 @@ def collect_docker(
         notes="\n".join(errors) or None,
     )
     session.add(log)
+    # Placements changed: refresh today's vuln snapshot so the dashboard trend
+    # reflects the new running set immediately (past days stay frozen).
+    write_daily_snapshot(session)
     session.flush()
     return log
 

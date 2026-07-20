@@ -1,4 +1,6 @@
-"""Aggregations for the dashboard: freshness, vuln trend, change feed, OS mix.
+"""Aggregations for the dashboard: freshness, change feed, OS mix.
+
+The vulnerability trend lives in :mod:`cmdb.domain.services.vuln_snapshots`.
 
 All functions take a Session and return plain dicts/lists; `now` is
 injectable for tests. Datetimes are naive UTC, matching the models.
@@ -9,7 +11,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from cmdb.domain.models import Host, HostSnapshot, Image, ImageScan, ImportLog
+from cmdb.domain.models import Host, HostSnapshot, ImportLog
 from cmdb.domain.services.history import diff_snapshots
 
 # ImportLog counters worth surfacing in the change feed.
@@ -62,52 +64,6 @@ def fleet_freshness(
         else:
             out["ts_absent"] += 1
     return out
-
-
-def vuln_trend(
-    session: Session,
-    days: int = 30,
-    now: datetime | None = None,
-    image_ids: set[int] | None = None,
-) -> list[dict]:
-    """Fleet-wide severity totals per day, over the last `days` days.
-
-    One point per day that has at least one scan; each point sums, per
-    non-noisy image, the latest scan on-or-before that day. O(days x images),
-    fine at homelab scale.
-
-    `image_ids` restricts the trend to those images (None means all). Running
-    status is a current-state property, so a trend filtered to the running set
-    reflects today's placements — a stopped container's history drops out.
-    """
-    now = now or datetime.utcnow()
-    window_start = now - timedelta(days=days)
-    q = (
-        session.query(ImageScan)
-        .join(Image)
-        .filter(Image.expected_noisy.is_(False))
-        .filter(ImageScan.scanned_at >= window_start)
-    )
-    if image_ids is not None:
-        q = q.filter(ImageScan.image_id.in_(image_ids))
-    scans = q.order_by(ImageScan.scanned_at).all()
-    if not scans:
-        return []
-
-    scan_days = sorted({s.scanned_at.date() for s in scans})
-    points = []
-    for day in scan_days:
-        # latest scan per image on-or-before this day
-        latest: dict[int, ImageScan] = {}
-        for s in scans:
-            if s.scanned_at.date() <= day:
-                latest[s.image_id] = s  # scans are ordered ascending
-        point = {"date": day, "critical": 0, "high": 0, "medium": 0, "low": 0, "total": 0}
-        for s in latest.values():
-            for key in ("critical", "high", "medium", "low", "total"):
-                point[key] += getattr(s, key) or 0
-        points.append(point)
-    return points
 
 
 def recent_changes(session: Session, limit: int = 10) -> list[dict]:

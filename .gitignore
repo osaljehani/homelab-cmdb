@@ -21,3 +21,4 @@ tests/test_*.py
 docs/superpowers/
 inventory/
 .env
+data/*.bak*

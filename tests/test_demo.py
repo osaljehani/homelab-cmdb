@@ -67,6 +67,14 @@ class TestSeedData:
         noisy = db.query(Image).filter_by(expected_noisy=True).all()
         assert len(noisy) == 1
 
+    def test_vuln_snapshots_backfilled_for_trend(self, db):
+        from cmdb.domain.services.vuln_snapshots import snapshot_trend
+
+        seed(db)
+        points = snapshot_trend(db)
+        assert len(points) > 1  # backdated envelopes produce a multi-day trend
+        assert any(p["total"] > 0 for p in points)
+
     def test_exactly_one_stale_host_rho(self, db):
         seed(db)
         now = datetime.utcnow()

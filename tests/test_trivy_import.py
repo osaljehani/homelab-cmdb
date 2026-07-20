@@ -228,3 +228,32 @@ def test_runtime_and_registry_refs_dedup_to_one_image(db: Session):
     assert len(imgs) == 1  # one canonical row, not two
     assert db.query(Image).count() == 1
     assert len(imgs[0].scans) == 2  # both source scans interleaved on it
+
+
+def test_import_from_path_writes_daily_snapshot(db: Session, tmp_path, envelope):
+    from cmdb.domain.models import VulnSnapshot
+
+    f = tmp_path / "scan.json"
+    f.write_text(json.dumps(envelope))
+    import_from_path(db, str(f), ImportSource.CLI)
+
+    rows = {s.image_ref: s for s in db.query(VulnSnapshot).all()}
+    assert set(rows) == {"nginx:latest", "redis:7"}
+    assert all(s.snapshot_date == datetime.utcnow().date() for s in rows.values())
+    # no containers/workloads in this db -> nothing counts as running
+    assert all(s.was_running is False for s in rows.values())
+    assert rows["nginx:latest"].critical == 1
+    assert rows["nginx:latest"].high == 1
+
+
+def test_import_from_path_same_day_rerun_keeps_one_snapshot_row(
+    db: Session, tmp_path, envelope
+):
+    from cmdb.domain.models import VulnSnapshot
+
+    f = tmp_path / "scan.json"
+    f.write_text(json.dumps(envelope))
+    import_from_path(db, str(f), ImportSource.CLI)
+    import_from_path(db, str(f), ImportSource.CLI)
+
+    assert db.query(VulnSnapshot).filter_by(image_ref="nginx:latest").count() == 1

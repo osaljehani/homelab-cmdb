@@ -7,6 +7,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-20
+
+### Added
+
+- Immutable daily vulnerability snapshots (`vuln_snapshots` table): every trivy import freezes
+  per-image severity rollups plus that day's running/noisy classification. The dashboard's 30-day
+  trend now reads snapshots instead of recomputing from current state, so remediating a CVE by
+  deleting the old image keeps past trend points intact while today's point drops immediately.
+  The migration backfills the last 30 days from existing scan history automatically at startup;
+  `cmdb db backfill-vuln-snapshots` re-runs the backfill after importing historical scan files.
+  Docker/K8s inventory imports and `/collect` runs also refresh today's snapshot, so a stopped
+  or replaced container moves today's trend point at the next collection.
+
+### Changed
+
+- Deleting an image (web / CLI / MCP) still removes its scans and per-CVE findings, but daily
+  totals already captured in the vulnerability trend are now kept; the confirmation copy on all
+  three surfaces says so.
+
+
 ## [0.1.0] - 2026-07-11
 
 ### Added
@@ -42,5 +62,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Demo mode (`cmdb demo`, and the `cmdb-demo` Docker Compose profile): seeds a fictional sample
   fleet into a throwaway database so the UI can be explored with no setup.
 
-[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/osaljehani/homelab-cmdb/releases/tag/v0.1.0

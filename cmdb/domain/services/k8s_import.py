@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from cmdb.domain.models import ImportLog, ImportSource, K8sCluster, K8sNamespace
 from cmdb.domain.models import K8sNodeRole, K8sWorkload
+from cmdb.domain.services.vuln_snapshots import write_daily_snapshot
 from cmdb.domain.refs import canonical_ref
 from cmdb.domain.services.k8s import add_cluster, add_node
 
@@ -281,5 +282,8 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
         notes="\n".join(all_errors) or None,
     )
     session.add(log)
+    # Placements changed: refresh today's vuln snapshot so the dashboard trend
+    # reflects the new running set immediately (past days stay frozen).
+    write_daily_snapshot(session)
     session.flush()
     return log

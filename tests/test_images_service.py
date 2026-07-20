@@ -356,28 +356,6 @@ def test_image_overview_k8s_only_image_is_running(db: Session):
     assert row["status"] == "running"
 
 
-def test_running_image_ids_includes_docker_and_k8s_matches(db: Session):
-    host = _host(db, "m1", "testhost")
-    docker_img = _img(db, "gitea/gitea:latest")
-    _container(db, host, "gitea", "gitea/gitea:latest", state="running")
-    k8s_img = _img(db, "portfolio:0.0.1")
-    _k8s_workload(db, "demo-cluster", "web", "portfolio-abc", "portfolio:0.0.1")
-    _img(db, "registry-only:1")  # scanned nowhere near a runtime
-    assert images_svc.running_image_ids(db) == {docker_img.id, k8s_img.id}
-
-
-def test_running_image_ids_excludes_exited_containers(db: Session):
-    host = _host(db, "m1", "testhost")
-    _img(db, "redis:7")
-    _container(db, host, "redis-old", "redis:7", state="exited")
-    assert images_svc.running_image_ids(db) == set()
-
-
-def test_running_image_ids_empty_without_placements(db: Session):
-    _img(db, "unscanned:1")
-    assert images_svc.running_image_ids(db) == set()
-
-
 def test_vuln_summary_counts_k8s_only_image_as_running(db: Session):
     img = _img(db, "portfolio:0.0.1", scans=[(datetime(2026, 7, 3), 1, 2)])
     _k8s_workload(db, "demo-cluster", "web", "portfolio-abc", "portfolio:0.0.1")

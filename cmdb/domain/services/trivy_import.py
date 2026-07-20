@@ -188,5 +188,12 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
     log.images_scanned = total_imgs
     log.vulnerabilities_upserted = total_vulns
     log.notes = "\n".join(all_errors) or None
+
+    # Freeze today's per-image rollups + running/noisy flags for the trend.
+    # Local import: vuln_snapshots pulls image_overview from the images
+    # service, which imports this module's tables — avoid the cycle.
+    from cmdb.domain.services.vuln_snapshots import write_daily_snapshot
+
+    write_daily_snapshot(session)
     session.flush()
     return log

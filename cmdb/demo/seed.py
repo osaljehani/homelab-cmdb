@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from cmdb.domain.models import Host, HostSnapshot, Image, ImportLog, ImportSource
 from cmdb.domain.services import docker_import, hosts, k8s_import
 from cmdb.domain.services import ansible as ansible_import
-from cmdb.domain.services import trivy_import
+from cmdb.domain.services import trivy_import, vuln_snapshots
 from cmdb.domain.services.ports_import import import_ports
 from cmdb.domain.services.tailscale_import import import_tailscale
 
@@ -175,5 +175,10 @@ def seed(session: Session) -> None:
     # 9. Freshness (rho goes stale) + one expected-noisy image.
     _finalize_freshness(session)
     _mark_noisy_image(session)
+
+    # 10. Daily vuln snapshots for the dashboard trend. The trivy envelopes
+    #     above are backdated via import_scan_run (which doesn't snapshot), so
+    #     reconstruct the history — after the noisy flag, which it captures.
+    vuln_snapshots.backfill_snapshots(session)
 
     session.commit()
