@@ -82,9 +82,11 @@ demo uses a throwaway database in your temp directory; **your real `cmdb.db` is 
   collected from `ss`.
 - **Image vulnerabilities** ingest trivy image scans (per-image history, severity counts,
   browsable findings); flag expected-noisy images (e.g. a pentest arsenal) out of the rollup.
+  Deleting a remediated image keeps its past trend history (immutable daily snapshots).
 - **Change history** every import snapshots a host's meaningful fields and records a per-host
   diff timeline (e.g. a kernel upgrade or IP change), skipping volatile values like uptime.
-- **Dashboard** severity breakdown with a 30-day vulnerability trend, security posture,
+- **Dashboard** severity breakdown with a 30-day vulnerability trend built from immutable
+  daily snapshots (remediations show as real drops; history never rewrites), security posture,
   fleet freshness (stale-host detection via `CMDB_STALE_DAYS`, Tailscale online/offline), a
   recent-changes feed and OS mix all as server-rendered SVG/CSS charts, no JS chart library.
 - **Topology visualizer** an interactive Cytoscape map of the whole lab: hosts with containers

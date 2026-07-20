@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-20
+
 ### Added
 
 - Immutable daily vulnerability snapshots (`vuln_snapshots` table): every trivy import freezes
@@ -60,5 +62,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Demo mode (`cmdb demo`, and the `cmdb-demo` Docker Compose profile): seeds a fictional sample
   fleet into a throwaway database so the UI can be explored with no setup.
 
-[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/osaljehani/homelab-cmdb/releases/tag/v0.1.0
