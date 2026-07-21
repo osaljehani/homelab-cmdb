@@ -88,6 +88,12 @@ def test_hosts_list_has_security_column(populated_client):
     assert "AppArmor" in r.text
 
 
+def test_topology_page_has_kubernetes_layer_toggle(client):
+    r = client.get("/topology")
+    assert r.status_code == 200
+    assert 'data-layer="layer-k8s"' in r.text
+
+
 def test_dashboard_lists_exposed_host(client, db, host_facts):
     host_facts["ansible_facts"]["ansible_hostname"] = "exposedhost"
     host_facts["ansible_facts"]["ansible_apparmor"] = {"status": "disabled"}

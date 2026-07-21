@@ -8,6 +8,7 @@ from cmdb.domain.models import (
     K8sCluster,
     K8sNode,
     K8sNodeRole,
+    K8sWorkload,
     ListeningPort,
     TailscaleService,
 )
@@ -196,10 +197,14 @@ def test_subnet_derivation_groups_lan_hosts(db):
 
 def test_node_ids_unique(db):
     host = _host(1, primary_ipv4="192.168.1.10", tailscale_ipv4="100.64.0.1", tailscale_online=True)
-    db.add(host)
+    cluster = K8sCluster(name="prod")
+    db.add_all([host, cluster])
     db.flush()
     db.add(Container(host_id=host.id, name="a", image="app:1", compose_project="s"))
     db.add(Container(host_id=host.id, name="b", image="app:1", compose_project="s"))
+    # two workload rows collapsing to one node must not collide with anything
+    db.add(_workload(cluster.id, "ns", "pod-1", "w", "w:1"))
+    db.add(_workload(cluster.id, "ns", "pod-2", "w", "w:1"))
     db.commit()
 
     graph = build_topology(db)
@@ -209,3 +214,111 @@ def test_node_ids_unique(db):
     assert ids.count("image:app:1") == 1
     assert graph["meta"]["hosts"] == 1
     assert graph["meta"]["containers"] == 2
+
+
+def _workload(cluster_id, namespace, pod_name, container_name, image, canonical="__raw__"):
+    return K8sWorkload(
+        cluster_id=cluster_id,
+        namespace=namespace,
+        pod_name=pod_name,
+        container_name=container_name,
+        image=image,
+        image_canonical=image if canonical == "__raw__" else canonical,
+    )
+
+
+def test_k8s_workload_replicas_deduped_into_namespace_compound(db):
+    cluster = K8sCluster(name="prod")
+    db.add(cluster)
+    db.flush()
+    for pod in ("falco-2kx9p", "falco-7hh2m", "falco-9qwzr"):
+        db.add(_workload(cluster.id, "security", pod, "falco", "falco:1"))
+    db.commit()
+
+    graph = build_topology(db)
+    wl = _node(graph, "workload:prod/security/falco@falco:1")
+    assert wl["data"]["replicas"] == 3
+    assert wl["data"]["label"] == "falco ×3"
+    assert wl["data"]["parent"] == "ns:prod/security"
+    assert wl["data"]["namespace"] == "security"
+    assert wl["data"]["cluster"] == "prod"
+    assert "layer-k8s" in wl["classes"]
+
+    ns = _node(graph, "ns:prod/security")
+    assert "layer-k8s" in ns["classes"]
+    _edge(graph, "cluster:prod", "ns:prod/security")
+
+    # the cluster hexagon stays a plain infra node — never a compound parent
+    cluster_node = _node(graph, "cluster:prod")
+    assert "k8s" in cluster_node["classes"].split()
+    assert "layer-infra" in cluster_node["classes"]
+    assert not [n for n in graph["nodes"] if n["data"].get("parent") == "cluster:prod"]
+
+
+def test_k8s_only_image_gets_dual_layer_node_and_edge(db):
+    cluster = K8sCluster(name="prod")
+    db.add(cluster)
+    db.flush()
+    db.add(_workload(cluster.id, "apps", "web-1", "web", "lonely:1"))
+    db.commit()
+
+    graph = build_topology(db)
+    img = _node(graph, "image:lonely:1")
+    classes = img["classes"].split()
+    assert "layer-images" in classes
+    assert "layer-k8s" in classes
+
+    edge = _edge(graph, "workload:prod/apps/web@lonely:1", "image:lonely:1")
+    edge_classes = edge["classes"].split()
+    assert "layer-images" in edge_classes
+    assert "layer-k8s" in edge_classes
+    assert "runs" in edge_classes
+    assert any(c.startswith("sev-") for c in edge_classes)
+
+
+def test_image_shared_with_container_stays_single_layer(db):
+    host = _host(1)
+    cluster = K8sCluster(name="prod")
+    db.add_all([host, cluster])
+    db.flush()
+    db.add(Container(host_id=host.id, name="app", image="shared:1", state="running"))
+    db.add(_workload(cluster.id, "apps", "app-1", "app", "shared:1"))
+    db.commit()
+
+    graph = build_topology(db)
+    assert _ids(graph).count("image:shared:1") == 1
+    classes = _node(graph, "image:shared:1")["classes"].split()
+    assert "layer-images" in classes
+    assert "layer-k8s" not in classes
+    # both a docker runs edge and a k8s runs edge point at the shared image
+    _edge(graph, "container:host-1/app", "image:shared:1")
+    _edge(graph, "workload:prod/apps/app@shared:1", "image:shared:1")
+
+
+def test_digest_only_workload_has_no_image_node_or_edge(db):
+    cluster = K8sCluster(name="prod")
+    db.add(cluster)
+    db.flush()
+    raw = "repo/svc@sha256:" + "a" * 64
+    db.add(_workload(cluster.id, "apps", "svc-1", "svc", raw, canonical=None))
+    db.commit()
+
+    graph = build_topology(db)
+    wl = _node(graph, f"workload:prod/apps/svc@{raw}")
+    assert wl["data"]["image"] == raw
+    assert not [n for n in graph["nodes"] if n["data"]["kind"] == "image"]
+    assert not [e for e in graph["edges"] if e["data"]["kind"] == "runs"]
+
+
+def test_meta_reports_workload_and_namespace_counts(db):
+    cluster = K8sCluster(name="prod")
+    db.add(cluster)
+    db.flush()
+    db.add(_workload(cluster.id, "security", "falco-1", "falco", "falco:1"))
+    db.add(_workload(cluster.id, "security", "falco-2", "falco", "falco:1"))  # same node
+    db.add(_workload(cluster.id, "apps", "web-1", "web", "web:1"))
+    db.commit()
+
+    graph = build_topology(db)
+    assert graph["meta"]["workloads"] == 2  # falco (deduped) + web
+    assert graph["meta"]["namespaces"] == 2  # security + apps
