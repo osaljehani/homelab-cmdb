@@ -28,6 +28,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every filter collapses back to the skeleton. Added "Expand all" / "Collapse all" controls
   alongside "Re-layout".
 
+## [0.3.1] - 2026-07-21
+
+### Security
+
+- Re-based the container image onto `gcr.io/distroless/cc-debian12` (from `python:3.12-slim`),
+  removing the Debian `perl-base` (CVE-2026-13221, -42496, -8376) and `openssh-client`
+  (CVE-2026-60002) CRITICAL findings that had no upstream fix. Trivy now reports 0 CRITICAL / 0 HIGH
+  for the image, down from 4 CRITICAL.
+
+### Changed
+
+- `cmdb collect` now drives Ansible over the pure-Python paramiko connection plugin instead of the
+  openssh `ssh` binary, so the distroless runtime needs no `openssh-client`. `ansible-core` is pinned
+  `<2.21` (2.21 removed the paramiko connection plugin) and `paramiko` joins the `collect` dependency
+  group. The image bundles a self-contained CPython 3.13 and `uv`, so the entrypoint and the
+  image-scan importer (`uv run cmdb import trivy`) are unchanged.
+
 ## [0.3.0] - 2026-07-21
 
 ### Added

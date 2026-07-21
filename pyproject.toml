@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "homelab-cmdb"
-version = "0.3.0"
+version = "0.3.1"
 description = "Homelab CMDB Ansible-fed, SQLite-backed inventory"
 requires-python = ">=3.12"
 license = "MIT"
@@ -50,7 +50,13 @@ dev = [
 ]
 # Optional: enables `cmdb collect` (agentless collection over SSH).
 collect = [
-    "ansible-core>=2.16",
+    # Pinned <2.21: the paramiko connection plugin (the only binary-free general
+    # SSH transport) was removed in ansible-core 2.21, and the distroless runtime
+    # ships no openssh-client binary. 2.20 still supports a 3.13 controller.
+    "ansible-core>=2.16,<2.21",
+    # paramiko drives that pure-Python SSH connection (transport=paramiko) so the
+    # image needs no openssh-client — see Dockerfile.
+    "paramiko>=3.5",
 ]
 # Optional: enables `cmdb mcp` (Model Context Protocol server over stdio).
 mcp = [
