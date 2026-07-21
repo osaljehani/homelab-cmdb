@@ -244,15 +244,23 @@ def test_k8s_workload_replicas_deduped_into_namespace_compound(db):
     assert wl["data"]["cluster"] == "prod"
     assert "layer-k8s" in wl["classes"]
 
+    # Namespace now nests inside the cluster compound; the old cluster->ns edge
+    # is gone so expand/collapse can fold the whole cluster to one node.
     ns = _node(graph, "ns:prod/security")
     assert "layer-k8s" in ns["classes"]
-    _edge(graph, "cluster:prod", "ns:prod/security")
+    assert ns["data"]["parent"] == "cluster:prod"
+    assert not [
+        e
+        for e in graph["edges"]
+        if e["data"]["source"] == "cluster:prod"
+        and e["data"]["target"] == "ns:prod/security"
+    ]
 
-    # the cluster hexagon stays a plain infra node — never a compound parent
+    # the cluster is now a compound container parenting its namespaces
     cluster_node = _node(graph, "cluster:prod")
-    assert "k8s" in cluster_node["classes"].split()
+    assert "cluster" in cluster_node["classes"].split()
     assert "layer-infra" in cluster_node["classes"]
-    assert not [n for n in graph["nodes"] if n["data"].get("parent") == "cluster:prod"]
+    assert [n for n in graph["nodes"] if n["data"].get("parent") == "cluster:prod"]
 
 
 def test_k8s_only_image_gets_dual_layer_node_and_edge(db):
@@ -308,6 +316,110 @@ def test_digest_only_workload_has_no_image_node_or_edge(db):
     assert wl["data"]["image"] == raw
     assert not [n for n in graph["nodes"] if n["data"]["kind"] == "image"]
     assert not [e for e in graph["edges"] if e["data"]["kind"] == "runs"]
+
+
+def test_group_labels_carry_member_count(db):
+    cluster = K8sCluster(name="prod")
+    db.add(cluster)
+    db.flush()
+    db.add(_workload(cluster.id, "security", "falco-1", "falco", "falco:1"))
+    db.add(_workload(cluster.id, "security", "kube-1", "kube-bench", "kube:1"))
+    db.commit()
+
+    graph = build_topology(db)
+    ns = _node(graph, "ns:prod/security")
+    assert ns["data"]["count"] == 2  # two distinct workloads
+    assert ns["data"]["label"] == "security ·2"
+    cluster_node = _node(graph, "cluster:prod")
+    assert cluster_node["data"]["count"] == 1  # one namespace
+    assert cluster_node["data"]["label"] == "prod ·1"
+
+
+def test_leaf_severity_ring_and_vuln_counts(db):
+    # A container whose image has a latest scan gets a sev-* ring and the CVE
+    # tallies attached for the detail panel — the image node stays off-canvas.
+    host = _host(1)
+    img = Image(ref="app:1", first_seen=datetime(2026, 1, 1))
+    db.add_all([host, img])
+    db.flush()
+    db.add(
+        ImageScan(
+            image_id=img.id,
+            scanned_at=datetime(2026, 6, 1),
+            critical=2,
+            high=3,
+            medium=4,
+            low=5,
+            total=14,
+        )
+    )
+    db.add(Container(host_id=host.id, name="app", image="app:1", state="running"))
+    db.commit()
+
+    graph = build_topology(db)
+    c = _node(graph, "container:host-1/app")
+    assert "sev-critical" in c["classes"].split()
+    assert c["data"]["vulns"] == {"critical": 2, "high": 3, "medium": 4, "low": 5}
+
+
+def test_unscanned_leaf_has_no_vuln_counts(db):
+    host = _host(1)
+    db.add(host)
+    db.flush()
+    db.add(Container(host_id=host.id, name="x", image="ghost:latest", state="running"))
+    db.commit()
+
+    graph = build_topology(db)
+    c = _node(graph, "container:host-1/x")
+    assert "sev-unscanned" in c["classes"].split()
+    assert c["data"]["vulns"] is None
+
+
+def test_critical_leaf_marks_enclosing_groups_has_crit(db):
+    # A critical workload flags every group it sits inside (namespace + cluster)
+    # so a *collapsed* group still shows the red ring; a critical container
+    # flags its compose group.
+    host = _host(1)
+    cluster = K8sCluster(name="prod")
+    wl_img = Image(ref="falco:1", first_seen=datetime(2026, 1, 1))
+    ct_img = Image(ref="app:1", first_seen=datetime(2026, 1, 1))
+    db.add_all([host, cluster, wl_img, ct_img])
+    db.flush()
+    db.add(ImageScan(image_id=wl_img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1))
+    db.add(ImageScan(image_id=ct_img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1))
+    db.add(_workload(cluster.id, "security", "falco-1", "falco", "falco:1", canonical="falco:1"))
+    db.add(
+        Container(
+            host_id=host.id,
+            name="app",
+            image="app:1",
+            state="running",
+            compose_project="stack",
+        )
+    )
+    db.commit()
+
+    graph = build_topology(db)
+    assert "has-crit" in _node(graph, "ns:prod/security")["classes"].split()
+    assert "has-crit" in _node(graph, "cluster:prod")["classes"].split()
+    assert "has-crit" in _node(graph, "compose:host-1/stack")["classes"].split()
+
+
+def test_non_critical_groups_are_not_flagged(db):
+    # High severity alone must not raise has-crit on the enclosing groups.
+    cluster = K8sCluster(name="prod")
+    img = Image(ref="web:1", first_seen=datetime(2026, 1, 1))
+    db.add_all([cluster, img])
+    db.flush()
+    db.add(ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), high=5, total=5))
+    db.add(_workload(cluster.id, "apps", "web-1", "web", "web:1", canonical="web:1"))
+    db.commit()
+
+    graph = build_topology(db)
+    wl = _node(graph, "workload:prod/apps/web@web:1")
+    assert "sev-high" in wl["classes"].split()
+    assert "has-crit" not in _node(graph, "ns:prod/apps")["classes"].split()
+    assert "has-crit" not in _node(graph, "cluster:prod")["classes"].split()
 
 
 def test_meta_reports_workload_and_namespace_counts(db):

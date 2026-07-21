@@ -10,6 +10,8 @@ CYTOSCAPE_VERSION="3.34.0"
 FCOSE_VERSION="2.2.0"
 COSE_BASE_VERSION="2.2.0"
 LAYOUT_BASE_VERSION="2.0.1"
+# expand/collapse compound nodes (cytoscape extension, loads after cytoscape)
+EXPAND_COLLAPSE_VERSION="4.1.1"
 GEIST_SANS_VERSION="5.2.5"
 GEIST_MONO_VERSION="5.2.8"
 
@@ -30,6 +32,7 @@ fetch "$CDN/cytoscape@$CYTOSCAPE_VERSION/dist/cytoscape.min.js" "$STATIC/js/cyto
 fetch "$CDN/layout-base@$LAYOUT_BASE_VERSION/layout-base.js" "$STATIC/js/layout-base.js"
 fetch "$CDN/cose-base@$COSE_BASE_VERSION/cose-base.js" "$STATIC/js/cose-base.js"
 fetch "$CDN/cytoscape-fcose@$FCOSE_VERSION/cytoscape-fcose.js" "$STATIC/js/cytoscape-fcose.js"
+fetch "$CDN/cytoscape-expand-collapse@$EXPAND_COLLAPSE_VERSION/cytoscape-expand-collapse.js" "$STATIC/js/cytoscape-expand-collapse.js"
 
 echo "fonts:"
 for w in 400 500 600 700; do
@@ -45,6 +48,7 @@ echo "licenses:"
 fetch "$CDN/htmx.org@$HTMX_VERSION/LICENSE" "$STATIC/vendor-licenses/htmx-LICENSE"
 fetch "$CDN/cytoscape@$CYTOSCAPE_VERSION/LICENSE" "$STATIC/vendor-licenses/cytoscape-LICENSE"
 fetch "$CDN/cytoscape-fcose@$FCOSE_VERSION/LICENSE" "$STATIC/vendor-licenses/cytoscape-fcose-LICENSE"
+fetch "$CDN/cytoscape-expand-collapse@$EXPAND_COLLAPSE_VERSION/LICENSE.md" "$STATIC/vendor-licenses/cytoscape-expand-collapse-LICENSE"
 fetch "$CDN/@fontsource/geist-sans@$GEIST_SANS_VERSION/LICENSE" "$STATIC/vendor-licenses/geist-OFL.txt"
 
 echo "checksums:"
