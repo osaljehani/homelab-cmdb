@@ -5,7 +5,7 @@
 # Python and builds the venv against it; both are relocatable into the distroless
 # runtime below. 3.13 (not Chainguard's bleeding-edge 3.14) keeps ansible-core —
 # the engine behind `cmdb collect` — on a supported controller interpreter.
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.9.30-python3.13-bookworm-slim@sha256:531f855bda2c73cd6ef67d56b733b357cea384185b3022bd09f05e002cd144ca AS builder
 
 ENV UV_PYTHON=3.13 \
     UV_PYTHON_INSTALL_DIR=/opt/python \
@@ -34,8 +34,9 @@ FROM gcr.io/distroless/cc-debian12 AS runtime
 
 # uv drives both the entrypoint and the scanner's `docker exec … uv run cmdb
 # import trivy`, so it must live in the runtime image (statically linked → runs
-# on distroless as-is).
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# on distroless as-is). Pinned to the same uv version the builder ships so the
+# binary that runs the venv matches the one that built it.
+COPY --from=ghcr.io/astral-sh/uv:0.9.30@sha256:538e0b39736e7feae937a65983e49d2ab75e1559d35041f9878b7b7e51de91e4 /uv /usr/local/bin/uv
 
 # Keep the standalone interpreter and venv at their build-time paths so the
 # venv's interpreter symlink still resolves.

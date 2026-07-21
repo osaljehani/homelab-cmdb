@@ -1,0 +1,73 @@
+/* ── Topology: filter bar, group actions, severity vuln chips ──
+   Loaded only on the topology page (see topology/index.html head). Extends the
+   existing .topology-* rules in main.css; everything follows the theme tokens.
+   If you prefer, paste this block at the end of main.css and drop the <link>. */
+
+.topology-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.topology-filters {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.topology-filters input[type=search] {
+  flex: 1 1 220px;
+  max-width: 340px;
+  width: auto;
+}
+
+.topology-filters select {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 220px;
+  cursor: pointer;
+}
+
+.topology-filters .crit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.topology-filters .crit-toggle input { accent-color: var(--accent); }
+
+/* Legend swatches added for the ring model. */
+.legend-critical { background: transparent; border: 2px solid var(--status-critical); border-radius: 2px; }
+
+/* Vuln count chips in the detail panel (image severity, off-canvas). */
+.vuln-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: .5rem;
+}
+
+.vuln-chip {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  padding: .1rem .5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.vuln-chip.vc-critical { color: var(--status-critical); border-color: color-mix(in srgb, var(--status-critical) 45%, transparent); }
+.vuln-chip.vc-high     { color: var(--accent);          border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.vuln-chip.vc-medium   { color: var(--text-muted); }
+.vuln-chip.vc-low      { color: var(--text-subtle); }
+
+@media (max-width: 640px) {
+  .topology-filters input[type=search],
+  .topology-filters select { flex-basis: 100%; max-width: none; }
+}

@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Topology view is now a collapsible drill-down. The graph is a compound hierarchy
+  (`host → compose → container` and `cluster → namespace → workload`) and loads collapsed to a
+  skeleton of hosts and clusters; double-click a group (or its `+` cue) to expand it. Clusters are
+  now compound containers holding their namespaces rather than hexagons linked by an edge, so
+  collapsing a cluster folds an entire Kubernetes layer to a single node — keeping the view legible
+  at 60+ workloads. Group labels show a member count (e.g. `security ·5`).
+- Images and vulnerabilities move off-canvas by default: instead of an image node plus edge per
+  container/workload, each leaf carries a worst-severity ring (colored by critical/high) and its CVE
+  counts appear in the detail panel. A collapsed group containing a hidden critical still shows the
+  red ring. The Kubernetes layer is now on by default; the legacy image nodes remain available on
+  the off-by-default "Images & vulns" layer.
+
+### Added
+
+- Topology filter bar: free-text node search, a host/cluster scope selector, and a "critical only"
+  toggle. Any active filter auto-expands so matches deep inside a group are reachable, and clearing
+  every filter collapses back to the skeleton. Added "Expand all" / "Collapse all" controls
+  alongside "Re-layout".
+
 ## [0.3.1] - 2026-07-21
 
 ### Security

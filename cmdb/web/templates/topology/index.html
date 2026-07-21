@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Topology HomeLabCMDB{% endblock %}
+{% block title %}Topology · HomeLabCMDB{% endblock %}
 {% block head %}
+<link rel="stylesheet" href="/static/css/topology.css?v={{ asset_version }}">
 <script src="/static/js/cytoscape.min.js" defer></script>
 <script src="/static/js/layout-base.js" defer></script>
 <script src="/static/js/cose-base.js" defer></script>
 <script src="/static/js/cytoscape-fcose.js" defer></script>
+<script src="/static/js/cytoscape-expand-collapse.js" defer></script>
 <script src="/static/js/topology.js?v={{ asset_version }}" defer></script>
 {% endblock %}
 {% block content %}
@@ -16,9 +18,21 @@
     <label><input type="checkbox" data-layer="layer-network" checked> Network</label>
     <label><input type="checkbox" data-layer="layer-exposure" checked> Exposure</label>
     <label><input type="checkbox" data-layer="layer-images"> Images &amp; vulns</label>
-    <label><input type="checkbox" data-layer="layer-k8s"> Kubernetes</label>
+    <label><input type="checkbox" data-layer="layer-k8s" checked> Kubernetes</label>
   </div>
-  <button type="button" class="btn btn-sm btn-secondary" id="relayout">Re-layout</button>
+  <div class="topology-actions">
+    <button type="button" class="btn btn-sm btn-secondary" id="expand-all">Expand all</button>
+    <button type="button" class="btn btn-sm btn-secondary" id="collapse-all">Collapse all</button>
+    <button type="button" class="btn btn-sm btn-secondary" id="relayout">Re-layout</button>
+  </div>
+</div>
+
+<div class="topology-filters">
+  <input type="search" id="topo-search" placeholder="Search nodes…" autocomplete="off">
+  <select id="topo-scope" aria-label="Focus host or cluster">
+    <option value="">All hosts / clusters</option>
+  </select>
+  <label class="crit-toggle"><input type="checkbox" id="topo-crit"> Critical only</label>
 </div>
 
 <div class="topology-wrap">
@@ -35,11 +49,14 @@
 
 <div class="legend">
   <span class="legend-item"><i class="legend-dot legend-host"></i>host</span>
-  <span class="legend-item"><i class="legend-dot legend-k8s"></i>k8s cluster</span>
+  <span class="legend-item"><i class="legend-dot legend-k8s"></i>cluster / namespace (group)</span>
   <span class="legend-item"><i class="legend-dot legend-k8s-workload"></i>k8s workload</span>
   <span class="legend-item"><i class="legend-dot legend-container"></i>container</span>
   <span class="legend-item"><i class="legend-dot legend-subnet"></i>subnet / tailnet</span>
-  <span class="legend-item"><i class="legend-dot sev-critical"></i>critical image</span>
-  <span class="legend-item"><i class="legend-dot legend-exposed"></i>exposed (ring)</span>
+  <span class="legend-item"><i class="legend-dot legend-critical"></i>critical (ring)</span>
+  <span class="legend-item"><i class="legend-dot legend-exposed"></i>high / exposed (ring)</span>
 </div>
+<p class="text-muted" style="font-size:.8rem; margin-top:.5rem;">
+  Loads collapsed to hosts &amp; clusters — double-click a group (or its <code>+</code> cue) to drill in. Images &amp; vulns show as a ring; details in the panel.
+</p>
 {% endblock %}
