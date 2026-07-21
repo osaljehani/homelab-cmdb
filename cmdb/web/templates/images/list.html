@@ -28,7 +28,7 @@
 <div class="card">
   <table>
     <thead>
-      <tr><th>Image</th><th>Status</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Total</th><th>Last scan</th><th></th></tr>
+      <tr><th>Image</th><th>Status</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Unknown</th><th>Total</th><th>Last scan</th><th></th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
@@ -39,10 +39,11 @@
         <td>{{ deployment_badges(row.deployments) }}</td>
         {% if row.scan %}
         <td>{{ row.scan.critical }}</td><td>{{ row.scan.high }}</td>
-        <td>{{ row.scan.medium }}</td><td>{{ row.scan.low }}</td><td>{{ row.scan.total }}</td>
+        <td>{{ row.scan.medium }}</td><td>{{ row.scan.low }}</td>
+        <td>{{ row.scan.unknown }}</td><td>{{ row.scan.total }}</td>
         <td>{{ row.scan.scanned_at.strftime('%Y-%m-%d %H:%M') }}</td>
         {% else %}
-        <td colspan="5" class="text-muted">not scanned</td><td class="text-muted">never</td>
+        <td colspan="6" class="text-muted">not scanned</td><td class="text-muted">never</td>
         {% endif %}
         <td><a href="/images/{{ row.image.ref }}">details</a></td>
       </tr>

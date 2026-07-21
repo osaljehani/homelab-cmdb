@@ -116,6 +116,53 @@ def test_images_page_upgrades_registry_badge_to_cluster_placement(db):
         app.dependency_overrides.clear()
 
 
+def test_images_page_shows_unknown_column(db):
+    client = _client(db)
+    try:
+        env = _envelope()
+        env["images"][0]["Results"][0]["Vulnerabilities"].append(
+            {"VulnerabilityID": "CVE-2", "PkgName": "openssl"})  # no Severity -> UNKNOWN
+        client.post("/import/upload/trivy",
+                    files={"files": ("s.json", json.dumps(env), "application/json")})
+        r = client.get("/images/")
+        assert r.status_code == 200
+        assert "<th>Unknown</th>" in r.text
+        # nginx row ends its counts with unknown=1, total=2.
+        assert "<td>1</td><td>2</td>" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_dashboard_severity_bar_counts_unknown_only_findings(db):
+    """An image whose findings are all UNKNOWN must render the severity bar
+    (with an unknown legend count), not the all-clear placeholder — otherwise
+    the bar reads 0 while the trend sparkline plots the nonzero total."""
+    client = _client(db)
+    try:
+        env = _envelope()
+        env["images"][0]["Results"][0]["Vulnerabilities"] = [
+            {"VulnerabilityID": "CVE-2", "PkgName": "openssl"}]  # no Severity -> UNKNOWN
+        client.post("/import/upload/trivy",
+                    files={"files": ("s.json", json.dumps(env), "application/json")})
+
+        from cmdb.domain.models import K8sCluster, K8sWorkload
+
+        cluster = K8sCluster(name="demo-cluster")
+        db.add(cluster)
+        db.flush()
+        db.add(K8sWorkload(cluster_id=cluster.id, namespace="web",
+                           pod_name="nginx-abc", container_name="main",
+                           image="nginx:latest", image_canonical="nginx:latest"))
+        db.commit()
+
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "No vulnerabilities in the latest scans." not in r.text
+        assert "unknown <b>1</b>" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_image_detail_shows_scan_host(db):
     client = _client(db)
     try:
