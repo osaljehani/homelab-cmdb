@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-21
+
 ### Added
 
 - Topology view now renders a Kubernetes layer behind a new "Kubernetes" toggle (off by default):
