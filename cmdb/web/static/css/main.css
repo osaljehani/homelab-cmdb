@@ -675,6 +675,7 @@ pre {
 .sev-high     { background: var(--accent); }
 .sev-medium   { background: var(--text-muted); }
 .sev-low      { background: var(--text-subtle); }
+.sev-unknown  { background: color-mix(in srgb, var(--text-subtle) 45%, transparent); }
 .fresh-ok     { background: var(--status-ok); }
 .fresh-stale  { background: var(--accent); }
 .fresh-never  { background: var(--text-subtle); }

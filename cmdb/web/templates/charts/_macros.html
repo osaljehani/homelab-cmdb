@@ -58,8 +58,9 @@
   ("high", vs.high, "sev-high"),
   ("medium", vs.medium, "sev-medium"),
   ("low", vs.low, "sev-low"),
+  ("unknown", vs.unknown, "sev-unknown"),
 ] %}
-{% if vs.critical + vs.high + vs.medium + vs.low == 0 %}
+{% if vs.critical + vs.high + vs.medium + vs.low + vs.unknown == 0 %}
 <p class="chart-placeholder chart-placeholder-ok">No vulnerabilities in the latest scans.</p>
 {% else %}
 {{ _stacked_bar(parts, "Vulnerabilities by severity") }}

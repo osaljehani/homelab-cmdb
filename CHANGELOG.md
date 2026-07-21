@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- UNKNOWN-severity findings (unrated CVEs — e.g. Debian "unimportant" entries or CVEs awaiting NVD
+  analysis) were counted in every stored total but invisible in the UI, so the dashboard severity
+  bar summed to less than the trend sparkline's total. The severity bar now renders a muted
+  "unknown" segment and legend count, the images list gains an Unknown column, and the per-image
+  scan history shows an Unk column — every severity breakdown now sums to the total it sits
+  next to.
+
 ## [0.3.2] - 2026-07-21
 
 ### Added
