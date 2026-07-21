@@ -3,10 +3,25 @@
 Output is Cytoscape.js "elements" JSON: {nodes, edges, meta}. Layer
 membership is encoded as classes (layer-infra / layer-network /
 layer-exposure / layer-images / layer-k8s) so the client can toggle layers
-without re-fetching. Compound nesting (Cytoscape `parent`) is used for
-host -> compose project -> container and for k8s namespace -> workload;
-every other relation is an edge (the cluster hexagon stays a plain node so
-it keeps its shape, linked to its namespaces by edges).
+without re-fetching.
+
+Compound nesting (Cytoscape `parent`) now carries the whole readable
+hierarchy so the client can collapse/expand it:
+
+    host    -> compose project -> container
+    cluster -> namespace       -> workload
+
+The cluster is therefore a compound container (not a lone hexagon linked by
+edges): collapsing it folds an entire k8s cluster down to a single node,
+which is what keeps the Kubernetes layer legible at 60+ workloads.
+
+Images move OFF the canvas by default: instead of an image node + edge per
+container/workload, every leaf carries a worst-severity class (sev-*) that
+the client draws as a colored ring, plus a `vulns` count object for the
+detail panel. Group nodes (namespace / compose / cluster) get `has_crit`
+when anything they contain is critical, so a *collapsed* group still shows
+the red ring. The image nodes themselves are still emitted on the
+`layer-images` layer (off by default) for anyone who wants the old view.
 """
 
 from datetime import datetime
@@ -36,9 +51,46 @@ def _severity_class(session: Session, image: Image | None) -> str:
     return "sev-clean"
 
 
+def _severity_meta(session: Session, image: Image | None) -> tuple[str, dict | None]:
+    """Return (sev_class, vuln_counts). vuln_counts is None when unscanned."""
+    sev = _severity_class(session, image)
+    if image is None:
+        return sev, None
+    scan = latest_scan(session, image)
+    if scan is None:
+        return sev, None
+    return sev, {
+        "critical": scan.critical,
+        "high": scan.high,
+        "medium": scan.medium,
+        "low": scan.low,
+    }
+
+
 def build_topology(session: Session) -> dict:
     nodes: list[dict] = []
     edges: list[dict] = []
+    # id -> node dict, so we can append classes (has_crit) after the fact and
+    # tally child counts onto the group labels once everything is built.
+    node_index: dict[str, dict] = {}
+    child_count: dict[str, int] = {}
+    crit_groups: set[str] = set()
+
+    def add_node(data: dict, classes: str) -> dict:
+        node = {"data": data, "classes": classes}
+        nodes.append(node)
+        node_index[data["id"]] = node
+        parent = data.get("parent")
+        if parent:
+            child_count[parent] = child_count.get(parent, 0) + 1
+        return node
+
+    def mark_crit(node_id: str | None) -> None:
+        # Walk a leaf's ancestry, flagging every enclosing group as critical.
+        while node_id:
+            crit_groups.add(node_id)
+            parent = node_index.get(node_id, {}).get("data", {}).get("parent")
+            node_id = parent
 
     hosts = session.query(Host).order_by(Host.hostname).all()
     clusters = session.query(K8sCluster).order_by(K8sCluster.name).all()
@@ -73,23 +125,21 @@ def build_topology(session: Session) -> dict:
         if host.tailscale_exit_node:
             classes.append("exit-node")
 
-        nodes.append(
+        add_node(
             {
-                "data": {
-                    "id": f"host:{host.hostname}",
-                    "label": host.hostname,
-                    "kind": "host",
-                    "url": f"/hosts/{host.hostname}",
-                    "ip": host.primary_ipv4,
-                    "os": host.os_distribution,
-                    "online": host.tailscale_online,
-                    "exposed_ports": len(exposed),
-                    "funnel": funnel,
-                    "ports": listeners,
-                    "services": services,
-                },
-                "classes": " ".join(classes),
-            }
+                "id": f"host:{host.hostname}",
+                "label": host.hostname,
+                "kind": "host",
+                "url": f"/hosts/{host.hostname}",
+                "ip": host.primary_ipv4,
+                "os": host.os_distribution,
+                "online": host.tailscale_online,
+                "exposed_ports": len(exposed),
+                "funnel": funnel,
+                "ports": listeners,
+                "services": services,
+            },
+            " ".join(classes),
         )
 
         subnet = _subnet_of(host.primary_ipv4)
@@ -123,32 +173,29 @@ def build_topology(session: Session) -> dict:
             )
 
     for subnet in sorted(subnets):
-        nodes.append(
-            {
-                "data": {"id": f"subnet:{subnet}", "label": subnet, "kind": "subnet"},
-                "classes": "subnet layer-network",
-            }
+        add_node(
+            {"id": f"subnet:{subnet}", "label": subnet, "kind": "subnet"},
+            "subnet layer-network",
         )
 
     if any_tailscale:
-        nodes.append(
-            {
-                "data": {"id": "tailnet", "label": "tailnet", "kind": "tailnet"},
-                "classes": "tailnet layer-network",
-            }
+        add_node(
+            {"id": "tailnet", "label": "tailnet", "kind": "tailnet"},
+            "tailnet layer-network",
         )
 
+    # Cluster is now a compound container. Its namespaces are `parent`ed to it
+    # (below) rather than joined by a k8s-ns edge, so expand/collapse folds the
+    # whole cluster to one node.
     for cluster in clusters:
-        nodes.append(
+        add_node(
             {
-                "data": {
-                    "id": f"cluster:{cluster.name}",
-                    "label": cluster.name,
-                    "kind": "k8s_cluster",
-                    "url": "/k8s",
-                },
-                "classes": "k8s layer-infra",
-            }
+                "id": f"cluster:{cluster.name}",
+                "label": cluster.name,
+                "kind": "k8s_cluster",
+                "url": "/k8s",
+            },
+            "cluster k8s layer-infra",
         )
         for member in cluster.nodes:
             edges.append(
@@ -173,59 +220,61 @@ def build_topology(session: Session) -> dict:
             compose_id = f"compose:{hostname}/{c.compose_project}"
             if compose_id not in compose_seen:
                 compose_seen.add(compose_id)
-                nodes.append(
+                add_node(
                     {
-                        "data": {
-                            "id": compose_id,
-                            "label": c.compose_project,
-                            "kind": "compose",
-                            "parent": f"host:{hostname}",
-                        },
-                        "classes": "compose layer-infra",
-                    }
+                        "id": compose_id,
+                        "label": c.compose_project,
+                        "kind": "compose",
+                        "parent": f"host:{hostname}",
+                    },
+                    "compose layer-infra",
                 )
             parent = compose_id
 
         state = (c.state or "unknown").lower()
-        nodes.append(
-            {
-                "data": {
-                    "id": f"container:{hostname}/{c.name}",
-                    "label": c.name,
-                    "kind": "container",
-                    "parent": parent,
-                    "state": c.state,
-                    "image": c.image,
-                    "url": f"/hosts/{hostname}",
-                },
-                "classes": f"container layer-infra state-{state}",
-            }
-        )
-
+        sev, vulns = "sev-unscanned", None
+        cref = None
         if c.image:
-            # Image.ref is canonical (ingest/migration), so normalize the raw
-            # `docker ps` spelling before any lookup or node id.
             cref = canonical_ref(c.image)
-            sev = _severity_class(session, images_by_ref.get(cref))
+            sev, vulns = _severity_meta(session, images_by_ref.get(cref))
+
+        container_id = f"container:{hostname}/{c.name}"
+        add_node(
+            {
+                "id": container_id,
+                "label": c.name,
+                "kind": "container",
+                "parent": parent,
+                "state": c.state,
+                "image": c.image,
+                "vulns": vulns,
+                "url": f"/hosts/{hostname}",
+            },
+            f"container layer-infra state-{state} {sev}",
+        )
+        if sev == "sev-critical":
+            mark_crit(container_id)
+
+        # Image node still emitted on layer-images (off by default) for the
+        # optional legacy view; the ring above is the primary signal.
+        if cref:
             if cref not in image_refs_used:
                 image_refs_used.add(cref)
                 image = images_by_ref.get(cref)
-                nodes.append(
+                add_node(
                     {
-                        "data": {
-                            "id": f"image:{cref}",
-                            "label": cref,
-                            "kind": "image",
-                            "url": f"/images/{cref}" if image else None,
-                        },
-                        "classes": f"image layer-images {sev}",
-                    }
+                        "id": f"image:{cref}",
+                        "label": cref,
+                        "kind": "image",
+                        "url": f"/images/{cref}" if image else None,
+                    },
+                    f"image layer-images {sev}",
                 )
             edges.append(
                 {
                     "data": {
                         "id": f"runs:{hostname}/{c.name}",
-                        "source": f"container:{hostname}/{c.name}",
+                        "source": container_id,
                         "target": f"image:{cref}",
                         "kind": "runs",
                     },
@@ -234,16 +283,13 @@ def build_topology(session: Session) -> dict:
             )
 
     # Kubernetes layer: namespace compounds (per cluster) holding one node per
-    # distinct workload, replicas collapsed. Runs after the container loop so
-    # `image_refs_used` is populated — an image first seen here is k8s-only and
-    # gets a dual layer-images/layer-k8s class so it hides with either layer.
+    # distinct workload, replicas collapsed. Namespaces are parented to their
+    # cluster so the cluster collapses cleanly.
     cluster_names = {c.id: c.name for c in clusters}
     grouped: dict[tuple, dict] = {}
     for w in session.query(K8sWorkload).all():
         key = (w.cluster_id, w.namespace, w.container_name, w.image)
-        g = grouped.setdefault(
-            key, {"replicas": 0, "canonical": w.image_canonical}
-        )
+        g = grouped.setdefault(key, {"replicas": 0, "canonical": w.image_canonical})
         g["replicas"] += 1
 
     ns_seen: set[str] = set()
@@ -256,69 +302,59 @@ def build_topology(session: Session) -> dict:
         ns_id = f"ns:{cluster_name}/{namespace}"
         if ns_id not in ns_seen:
             ns_seen.add(ns_id)
-            nodes.append(
+            add_node(
                 {
-                    "data": {
-                        "id": ns_id,
-                        "label": namespace,
-                        "kind": "k8s_namespace",
-                        "cluster": cluster_name,
-                        "url": "/k8s",
-                    },
-                    "classes": "k8s-namespace layer-k8s",
-                }
-            )
-            edges.append(
-                {
-                    "data": {
-                        "id": f"k8s-ns:{cluster_name}/{namespace}",
-                        "source": f"cluster:{cluster_name}",
-                        "target": ns_id,
-                        "kind": "k8s_ns",
-                    },
-                    "classes": "layer-k8s k8s-ns",
-                }
+                    "id": ns_id,
+                    "label": namespace,
+                    "kind": "k8s_namespace",
+                    "cluster": cluster_name,
+                    "parent": f"cluster:{cluster_name}",
+                    "url": "/k8s",
+                },
+                "k8s-namespace layer-k8s",
             )
 
         replicas = g["replicas"]
         label = container_name if replicas == 1 else f"{container_name} ×{replicas}"
         wl_id = f"workload:{cluster_name}/{namespace}/{container_name}@{raw_image}"
-        nodes.append(
-            {
-                "data": {
-                    "id": wl_id,
-                    "label": label,
-                    "kind": "k8s_workload",
-                    "parent": ns_id,
-                    "cluster": cluster_name,
-                    "namespace": namespace,
-                    "image": raw_image,
-                    "replicas": replicas,
-                    "url": "/k8s",
-                },
-                "classes": "k8s-workload layer-k8s",
-            }
-        )
 
         cref = g["canonical"]
+        sev, vulns = "sev-unscanned", None
+        if cref:
+            sev, vulns = _severity_meta(session, images_by_ref.get(cref))
+
+        add_node(
+            {
+                "id": wl_id,
+                "label": label,
+                "kind": "k8s_workload",
+                "parent": ns_id,
+                "cluster": cluster_name,
+                "namespace": namespace,
+                "image": raw_image,
+                "replicas": replicas,
+                "vulns": vulns,
+                "url": "/k8s",
+            },
+            f"k8s-workload layer-k8s {sev}",
+        )
+        if sev == "sev-critical":
+            mark_crit(wl_id)
+
         if not cref:
-            # digest-only ref (repo@sha256:...): no fabricated image match, so
-            # no image node/edge — the raw ref shows in the detail panel.
+            # digest-only ref: no fabricated image match; raw ref shows in panel.
             continue
-        sev = _severity_class(session, images_by_ref.get(cref))
         if cref not in image_refs_used:
             image_refs_used.add(cref)
             image = images_by_ref.get(cref)
-            nodes.append(
+            add_node(
                 {
-                    "data": {
-                        "id": f"image:{cref}",
-                        "label": cref,
-                        "kind": "image",
-                        "url": f"/images/{cref}" if image else None,
-                    },
-                    "classes": f"image layer-images layer-k8s {sev}",
-                }
+                    "id": f"image:{cref}",
+                    "label": cref,
+                    "kind": "image",
+                    "url": f"/images/{cref}" if image else None,
+                },
+                f"image layer-images layer-k8s {sev}",
             )
         edges.append(
             {
@@ -331,6 +367,25 @@ def build_topology(session: Session) -> dict:
                 "classes": f"layer-images layer-k8s runs {sev}",
             }
         )
+
+    # Post-pass: fold child counts into group labels ("falco ·5") and flag any
+    # group that (transitively) contains a critical so a collapsed node shows
+    # the red ring.
+    for node_id, node in node_index.items():
+        count = child_count.get(node_id)
+        if count and node["data"].get("kind") in (
+            "k8s_cluster",
+            "k8s_namespace",
+            "compose",
+        ):
+            node["data"]["count"] = count
+            node["data"]["label"] = f"{node['data']['label']} ·{count}"
+        if node_id in crit_groups and node["data"].get("kind") in (
+            "k8s_cluster",
+            "k8s_namespace",
+            "compose",
+        ):
+            node["classes"] += " has-crit"
 
     return {
         "nodes": nodes,
