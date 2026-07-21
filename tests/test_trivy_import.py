@@ -204,6 +204,36 @@ def test_import_from_path_bad_report_non_fatal(db: Session, tmp_path):
     assert log.notes is not None and "image[0]" in log.notes
 
 
+def test_duplicate_cve_across_results_counted_once(db: Session):
+    # Standalone trivy emits one Result per Go binary, so the same stdlib CVE
+    # can appear under many Targets; it must count once per (CVE, pkg, version).
+    vuln = {
+        "VulnerabilityID": "CVE-2025-1",
+        "PkgName": "stdlib",
+        "InstalledVersion": "1.24.0",
+        "Severity": "HIGH",
+    }
+    report = {
+        "ArtifactName": "multibin:1",
+        "Results": [
+            {"Target": "usr/bin/a", "Class": "lang-pkgs", "Vulnerabilities": [dict(vuln)]},
+            {"Target": "usr/bin/b", "Class": "lang-pkgs", "Vulnerabilities": [dict(vuln)]},
+            {
+                "Target": "usr/bin/c",
+                "Class": "lang-pkgs",
+                # different installed version -> a distinct finding, kept
+                "Vulnerabilities": [dict(vuln, InstalledVersion="1.25.0")],
+            },
+        ],
+    }
+    env = {"scanned_at": "2026-07-21T04:00:00Z", "images": [report]}
+    counts = import_scan_run(db, env)
+    assert counts["vulnerabilities"] == 2
+    scan = db.query(ImageScan).one()
+    assert (scan.high, scan.total) == (2, 2)
+    assert {v.installed_version for v in scan.vulnerabilities} == {"1.24.0", "1.25.0"}
+
+
 def test_runtime_and_registry_refs_dedup_to_one_image(db: Session):
     # runtime scan spells it short; Zot scan keeps the library/ prefix
     import_scan_run(

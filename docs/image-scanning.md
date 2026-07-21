@@ -97,6 +97,13 @@ Each import creates a new `ImageScan` row (full time-series history is retained)
 images are upserted by `ref`, so re-scanning the same image updates it rather than
 duplicating it. A single envelope file may also be a JSON **list** of envelopes.
 
+Findings are deduplicated per report to one per (`VulnerabilityID`, `PkgName`,
+`InstalledVersion`) across all `Results`. Trivy emits one `Result` per target — for
+Go-heavy images that means one per binary, repeating the same CVE under each — while
+registry transforms (like `trivy-scan-registry.sh`) flatten everything into a single
+`Result`. Deduplication makes both shapes produce identical counts, so mixing feeds
+never sawtooths the totals.
+
 ## Feeding CMDB a scan
 
 There are four ways to get an envelope into CMDB; all use the same importer.

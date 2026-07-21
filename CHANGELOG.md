@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Trivy import now counts one finding per (CVE, package, installed version) per image instead of
+  one per report Result. Scanners that emit one Result per binary (e.g. standalone trivy scanning
+  Go-heavy images) previously multiplied the same CVE by the number of binaries containing it,
+  inflating severity rollups by hundreds versus feeds that flatten to a single Result (such as the
+  Zot registry transform) — so totals sawtoothed depending on which feed scanned an image last.
+
 ## [0.2.0] - 2026-07-20
 
 ### Added

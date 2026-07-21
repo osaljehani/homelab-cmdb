@@ -89,9 +89,22 @@ def _ingest_report(
 
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
     total = 0
+    # One finding per (CVE, package, installed version) across the whole report.
+    # Scanners disagree on Result granularity: standalone trivy emits one Result
+    # per target (e.g. per Go binary), so a CVE baked into N binaries would count
+    # N times, while registry feeds flatten to a single Result and count it once.
+    seen: set[tuple] = set()
     for result in report.get("Results") or []:
         target = result.get("Target")
         for v in result.get("Vulnerabilities") or []:
+            key = (
+                v.get("VulnerabilityID") or "",
+                v.get("PkgName"),
+                v.get("InstalledVersion"),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
             sev = (v.get("Severity") or "UNKNOWN").upper()
             bucket = sev.lower() if sev in _SEVERITIES else "unknown"
             counts[bucket] += 1
