@@ -2,16 +2,18 @@
 
 Output is Cytoscape.js "elements" JSON: {nodes, edges, meta}. Layer
 membership is encoded as classes (layer-infra / layer-network /
-layer-exposure / layer-images) so the client can toggle layers without
-re-fetching. Compound nesting (Cytoscape `parent`) is used only for
-host -> compose project -> container; every other relation is an edge.
+layer-exposure / layer-images / layer-k8s) so the client can toggle layers
+without re-fetching. Compound nesting (Cytoscape `parent`) is used for
+host -> compose project -> container and for k8s namespace -> workload;
+every other relation is an edge (the cluster hexagon stays a plain node so
+it keeps its shape, linked to its namespaces by edges).
 """
 
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from cmdb.domain.models import Container, Host, Image, K8sCluster
+from cmdb.domain.models import Container, Host, Image, K8sCluster, K8sWorkload
 from cmdb.domain.refs import canonical_ref
 from cmdb.domain.services.images import latest_scan
 from cmdb.domain.services.network import subnet_of as _subnet_of
@@ -231,6 +233,105 @@ def build_topology(session: Session) -> dict:
                 }
             )
 
+    # Kubernetes layer: namespace compounds (per cluster) holding one node per
+    # distinct workload, replicas collapsed. Runs after the container loop so
+    # `image_refs_used` is populated — an image first seen here is k8s-only and
+    # gets a dual layer-images/layer-k8s class so it hides with either layer.
+    cluster_names = {c.id: c.name for c in clusters}
+    grouped: dict[tuple, dict] = {}
+    for w in session.query(K8sWorkload).all():
+        key = (w.cluster_id, w.namespace, w.container_name, w.image)
+        g = grouped.setdefault(
+            key, {"replicas": 0, "canonical": w.image_canonical}
+        )
+        g["replicas"] += 1
+
+    ns_seen: set[str] = set()
+    for (cluster_id, namespace, container_name, raw_image), g in sorted(
+        grouped.items(), key=lambda kv: kv[0]
+    ):
+        cluster_name = cluster_names.get(cluster_id)
+        if cluster_name is None:
+            continue
+        ns_id = f"ns:{cluster_name}/{namespace}"
+        if ns_id not in ns_seen:
+            ns_seen.add(ns_id)
+            nodes.append(
+                {
+                    "data": {
+                        "id": ns_id,
+                        "label": namespace,
+                        "kind": "k8s_namespace",
+                        "cluster": cluster_name,
+                        "url": "/k8s",
+                    },
+                    "classes": "k8s-namespace layer-k8s",
+                }
+            )
+            edges.append(
+                {
+                    "data": {
+                        "id": f"k8s-ns:{cluster_name}/{namespace}",
+                        "source": f"cluster:{cluster_name}",
+                        "target": ns_id,
+                        "kind": "k8s_ns",
+                    },
+                    "classes": "layer-k8s k8s-ns",
+                }
+            )
+
+        replicas = g["replicas"]
+        label = container_name if replicas == 1 else f"{container_name} ×{replicas}"
+        wl_id = f"workload:{cluster_name}/{namespace}/{container_name}@{raw_image}"
+        nodes.append(
+            {
+                "data": {
+                    "id": wl_id,
+                    "label": label,
+                    "kind": "k8s_workload",
+                    "parent": ns_id,
+                    "cluster": cluster_name,
+                    "namespace": namespace,
+                    "image": raw_image,
+                    "replicas": replicas,
+                    "url": "/k8s",
+                },
+                "classes": "k8s-workload layer-k8s",
+            }
+        )
+
+        cref = g["canonical"]
+        if not cref:
+            # digest-only ref (repo@sha256:...): no fabricated image match, so
+            # no image node/edge — the raw ref shows in the detail panel.
+            continue
+        sev = _severity_class(session, images_by_ref.get(cref))
+        if cref not in image_refs_used:
+            image_refs_used.add(cref)
+            image = images_by_ref.get(cref)
+            nodes.append(
+                {
+                    "data": {
+                        "id": f"image:{cref}",
+                        "label": cref,
+                        "kind": "image",
+                        "url": f"/images/{cref}" if image else None,
+                    },
+                    "classes": f"image layer-images layer-k8s {sev}",
+                }
+            )
+        edges.append(
+            {
+                "data": {
+                    "id": f"k8s-runs:{cluster_name}/{namespace}/{container_name}@{raw_image}",
+                    "source": wl_id,
+                    "target": f"image:{cref}",
+                    "kind": "runs",
+                },
+                "classes": f"layer-images layer-k8s runs {sev}",
+            }
+        )
+
     return {
         "nodes": nodes,
         "edges": edges,
@@ -238,6 +339,8 @@ def build_topology(session: Session) -> dict:
             "hosts": len(hosts),
             "containers": len(containers),
             "clusters": len(clusters),
+            "workloads": len(grouped),
+            "namespaces": len(ns_seen),
             "generated_at": datetime.utcnow().isoformat(),
         },
     }

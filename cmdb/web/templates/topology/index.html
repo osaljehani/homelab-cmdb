@@ -16,6 +16,7 @@
     <label><input type="checkbox" data-layer="layer-network" checked> Network</label>
     <label><input type="checkbox" data-layer="layer-exposure" checked> Exposure</label>
     <label><input type="checkbox" data-layer="layer-images"> Images &amp; vulns</label>
+    <label><input type="checkbox" data-layer="layer-k8s"> Kubernetes</label>
   </div>
   <button type="button" class="btn btn-sm btn-secondary" id="relayout">Re-layout</button>
 </div>
@@ -35,6 +36,7 @@
 <div class="legend">
   <span class="legend-item"><i class="legend-dot legend-host"></i>host</span>
   <span class="legend-item"><i class="legend-dot legend-k8s"></i>k8s cluster</span>
+  <span class="legend-item"><i class="legend-dot legend-k8s-workload"></i>k8s workload</span>
   <span class="legend-item"><i class="legend-dot legend-container"></i>container</span>
   <span class="legend-item"><i class="legend-dot legend-subnet"></i>subnet / tailnet</span>
   <span class="legend-item"><i class="legend-dot sev-critical"></i>critical image</span>

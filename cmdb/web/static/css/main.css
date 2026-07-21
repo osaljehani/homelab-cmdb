@@ -818,6 +818,7 @@ pre {
 
 .legend-host      { background: var(--text-subtle); }
 .legend-k8s       { background: var(--accent); }
+.legend-k8s-workload { background: var(--bg-surface-hover); border: 1px solid var(--accent); border-radius: 2px; }
 .legend-container { background: var(--bg-surface-hover); border: 1px solid var(--text-subtle); }
 .legend-subnet    { background: transparent; border: 1px dashed var(--text-subtle); border-radius: 50%; }
 .legend-exposed   { background: transparent; border: 2px solid var(--accent); border-radius: 50%; }

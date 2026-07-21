@@ -74,6 +74,13 @@
             'shape': 'hexagon', 'width': 30, 'height': 30,
             'border-color': accent, 'color': textMain
         }},
+        { selector: 'node.k8s-namespace', style: {
+            'border-style': 'dashed', 'border-color': accent
+        }},
+        { selector: 'node.k8s-workload', style: {
+            'shape': 'round-rectangle', 'width': 16, 'height': 16,
+            'border-color': accent
+        }},
         { selector: 'node.subnet, node.tailnet', style: {
             'shape': 'ellipse', 'width': 26, 'height': 26,
             'background-opacity': 0.15,
@@ -103,6 +110,7 @@
             'label': 'data(role)', 'font-size': 8, 'font-family': mono,
             'color': textSubtle, 'text-rotation': 'autorotate', 'text-margin-y': -6
         }},
+        { selector: 'edge.k8s-ns', style: { 'line-color': accent, 'line-opacity': 0.5, 'line-style': 'dotted' } },
         { selector: 'edge.runs', style: { 'line-opacity': 0.5 } },
         { selector: 'edge.runs.sev-critical', style: { 'line-color': critical, 'line-opacity': 0.9, 'width': 2 } },
         { selector: 'edge.runs.sev-high', style: { 'line-color': accent, 'line-opacity': 0.8 } },
@@ -143,6 +151,9 @@
       var rows = [['kind', data.kind]];
       if (data.ip) rows.push(['ip', data.ip]);
       if (data.os) rows.push(['os', data.os]);
+      if (data.cluster) rows.push(['cluster', data.cluster]);
+      if (data.namespace) rows.push(['namespace', data.namespace]);
+      if (data.replicas) rows.push(['replicas', data.replicas]);
       if (data.state) rows.push(['state', data.state]);
       if (data.image) rows.push(['image', data.image]);
       if (data.online != null) rows.push(['tailscale', data.online ? 'online' : 'offline']);
@@ -180,6 +191,10 @@
     function applyLayers() {
       if (!cy) return;
       cy.batch(function () {
+        // Clear first, then hide per unchecked layer, so an element carrying
+        // two layer classes (e.g. a k8s-only image is layer-images + layer-k8s)
+        // is hidden when *either* owning layer is off — order-independent.
+        cy.elements().removeClass('hidden-layer');
         document.querySelectorAll('.layer-toggles input[data-layer]').forEach(function (box) {
           var layer = box.getAttribute('data-layer');
           if (layer === 'layer-exposure') {
@@ -191,9 +206,7 @@
             });
             return;
           }
-          var els = cy.elements('.' + layer);
-          // Never hide infra-layer compounds that still have visible children.
-          els.toggleClass('hidden-layer', !box.checked);
+          if (!box.checked) cy.elements('.' + layer).addClass('hidden-layer');
         });
       });
     }
