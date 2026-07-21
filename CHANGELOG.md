@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-21
+
 ### Fixed
 
 - Trivy import now counts one finding per (CVE, package, installed version) per image instead of
