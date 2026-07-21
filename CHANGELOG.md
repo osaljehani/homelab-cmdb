@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-21
+
+### Added
+
+- Topology filter bar: free-text node search, a host/cluster scope selector, and a "critical only"
+  toggle. Any active filter auto-expands so matches deep inside a group are reachable, and clearing
+  every filter collapses back to the skeleton. Added "Expand all" / "Collapse all" controls
+  alongside "Re-layout".
+
 ### Changed
 
 - Topology view is now a collapsible drill-down. The graph is a compound hierarchy
@@ -20,13 +29,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   counts appear in the detail panel. A collapsed group containing a hidden critical still shows the
   red ring. The Kubernetes layer is now on by default; the legacy image nodes remain available on
   the off-by-default "Images & vulns" layer.
-
-### Added
-
-- Topology filter bar: free-text node search, a host/cluster scope selector, and a "critical only"
-  toggle. Any active filter auto-expands so matches deep inside a group are reachable, and clearing
-  every filter collapses back to the skeleton. Added "Expand all" / "Collapse all" controls
-  alongside "Re-layout".
+- Pinned both uv image references (builder base and the runtime `COPY --from`) to `0.9.30` with
+  sha256 digests, so container builds are reproducible and no longer track a moving `latest` tag;
+  the runtime uv now matches the version that built the venv. The distroless runtime base stays
+  unpinned to keep receiving upstream security rebuilds.
 
 ## [0.3.1] - 2026-07-21
 
@@ -122,6 +128,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Demo mode (`cmdb demo`, and the `cmdb-demo` Docker Compose profile): seeds a fictional sample
   fleet into a throwaway database so the UI can be explored with no setup.
 
-[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.1...v0.3.2
 [0.2.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/osaljehani/homelab-cmdb/releases/tag/v0.1.0
