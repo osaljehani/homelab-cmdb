@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Topology view now renders a Kubernetes layer behind a new "Kubernetes" toggle (off by default):
+  namespace boxes under each cluster, each holding one node per distinct workload with replicas
+  collapsed to a count (e.g. `falco ×3`), plus severity-colored workload→image edges mirroring the
+  Docker container→image styling. Images that run only in Kubernetes now appear on the map too, so
+  their vulnerabilities are visible; such image nodes hide when either the Images or the Kubernetes
+  layer is turned off. Namespaces link to the cluster hexagon by an edge rather than nesting, so the
+  hexagon keeps its shape. The detail panel gains cluster / namespace / replica rows.
+
 ## [0.2.1] - 2026-07-21
 
 ### Fixed
