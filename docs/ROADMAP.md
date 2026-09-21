@@ -65,6 +65,9 @@ changelog with pointers into the code.
 
 1. **Package & version inventory (CVE-aware)** Track installed packages per host; highlight
    hosts needing security updates.
-2. **Authentication** Optional login before exposing the UI beyond localhost.
+2. **Authentication** Optional login before exposing the UI beyond localhost. Design in progress:
+   [`docs/design/authentication.md`](design/authentication.md) — OIDC via an external IdP
+   (Authentik) for the web UI, bearer tokens for the JSON API, and MCP over Streamable HTTP as an
+   OAuth resource server for cloud AI clients.
 3. **Agentless live collection** _Delivered for facts + Docker + K8s (see above)._ Remaining:
    scheduled/background runs and concurrent-run locking.
