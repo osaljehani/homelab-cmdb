@@ -22,3 +22,5 @@ docs/superpowers/
 inventory/
 .env
 data/*.bak*
+# Local, site-specific deployment override (bind address / ports). Never publish.
+docker-compose.override.yml
