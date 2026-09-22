@@ -18,13 +18,17 @@ WORKDIR /app
 # A standalone 3.13 we can copy wholesale into distroless, then resolve deps
 # against it. The `collect` group pulls ansible-core + paramiko (pure-Python SSH)
 # so the runtime needs no openssh-client. --no-dev drops the test/lint tooling.
+#
+# `mcp` is NOT optional for the runtime image despite being an optional group:
+# `cmdb serve` imports cmdb.mcp.server to decide whether to mount /mcp, so
+# without it the whole web app fails to import, not just the MCP endpoint.
 RUN uv python install 3.13
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev --group collect --no-install-project --frozen
+RUN uv sync --no-dev --group collect --group mcp --no-install-project --frozen
 
 COPY cmdb/ cmdb/
 COPY alembic.ini ./
-RUN uv sync --no-dev --group collect --frozen
+RUN uv sync --no-dev --group collect --group mcp --frozen
 
 # ─── Runtime ─────────────────────────────────────────────────────────────────
 # distroless/cc = glibc + libgcc, nothing else. No perl-base, no openssh-client →
