@@ -400,7 +400,9 @@ dev = [
     { name = "ruff" },
 ]
 mcp = [
+    { name = "httpx" },
     { name = "mcp" },
+    { name = "pyjwt", extra = ["crypto"] },
 ]
 
 [package.metadata]
@@ -429,7 +431,11 @@ dev = [
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.4" },
 ]
-mcp = [{ name = "mcp", specifier = ">=1.12" }]
+mcp = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "mcp", specifier = ">=1.28,<2" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
+]
 
 [[package]]
 name = "httpcore"

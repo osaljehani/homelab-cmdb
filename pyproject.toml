@@ -58,9 +58,18 @@ collect = [
     # image needs no openssh-client — see Dockerfile.
     "paramiko>=3.5",
 ]
-# Optional: enables `cmdb mcp` (Model Context Protocol server over stdio).
+# Optional: enables `cmdb mcp` (MCP over stdio) AND the remote streamable-HTTP
+# endpoint served by `cmdb serve` when CMDB_MCP_REMOTE_ENABLED is set.
 mcp = [
-    "mcp>=1.12",
+    # >=1.28: the remote endpoint relies on AuthSettings.resource_server_url and
+    # the RFC 9728 path-inserted metadata route, neither of which 1.12 has.
+    "mcp>=1.28,<2",
+    # Both are already resolved transitively via mcp, but cmdb/mcp/auth.py
+    # imports them directly -- and depending on a transitive pin for signature
+    # verification is exactly the kind of fragility that goes unnoticed until an
+    # mcp release drops it and the next `uv lock` silently breaks the verifier.
+    "pyjwt[crypto]>=2.10",
+    "httpx>=0.27",
 ]
 
 [tool.pytest.ini_options]
