@@ -1,6 +1,6 @@
 import typer
 
-from cmdb.cli import hosts, import_, collect, k8s, generate, db as db_cli, images
+from cmdb.cli import hosts, import_, collect, k8s, generate, db as db_cli, images, users
 from cmdb.cli import demo as demo_cli
 from cmdb.cli import export as export_cli
 from cmdb.config import settings
@@ -13,6 +13,7 @@ app.add_typer(k8s.app, name="k8s")
 app.add_typer(generate.app, name="generate")
 app.add_typer(db_cli.app, name="db")
 app.add_typer(images.app, name="images")
+app.add_typer(users.app, name="users")
 app.command("export")(export_cli.export_cmd)
 app.command("restore")(export_cli.restore_cmd)
 app.command("demo")(demo_cli.demo_cmd)

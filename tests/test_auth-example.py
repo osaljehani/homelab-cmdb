@@ -445,7 +445,7 @@ def test_healthz_is_gated_so_session_js_can_detect_a_lapse(gate_app):
         assert client.get("/healthz", headers=PROXY_HEADERS).status_code == 200
 
 
-def test_static_and_login_are_reachable_anonymously(gate_app):
+def test_static_and_login_are_reachable_anonymously(gate_app, local_user):
     app = gate_app("local")
     with _client(app) as client:
         assert client.get("/static/js/session.js").status_code == 200
@@ -714,10 +714,286 @@ def test_login_page_redirects_away_in_proxy_mode(gate_app):
     assert r.headers["location"] == "/"
 
 
-def test_login_page_offers_both_doors_when_both_are_enabled(gate_app, monkeypatch):
+def test_login_page_offers_both_doors_when_both_are_enabled(
+    gate_app, local_user, monkeypatch
+):
     _oidc_env(monkeypatch)
     app = gate_app("local,oidc", oidc_display_name="Example SSO")
     with _client(app) as client:
         body = client.get("/login").text
     assert 'name="password"' in body
     assert "Sign in with Example SSO" in body
+
+
+# --- The users service -----------------------------------------------------
+
+
+def test_create_user_hashes_the_password(db):
+    from cmdb.domain.services.users import create_user
+    from cmdb.web.auth.passwords import verify_password
+
+    user = create_user(db, "alice", password="s3cret-passphrase", email="a@example.test")
+    assert user.password_hash != "s3cret-passphrase"
+    assert verify_password("s3cret-passphrase", user.password_hash)
+    assert user.is_active is True
+    assert user.is_admin is False
+
+
+def test_create_user_rejects_a_duplicate_username(db):
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "alice", password="s3cret-passphrase")
+    with pytest.raises(ValueError, match="already exists"):
+        create_user(db, "alice", password="other-passphrase")
+
+
+def test_create_user_rejects_a_short_password(db):
+    from cmdb.domain.services.users import MIN_PASSWORD_LENGTH, create_user
+
+    with pytest.raises(ValueError, match="at least"):
+        create_user(db, "alice", password="x" * (MIN_PASSWORD_LENGTH - 1))
+
+
+def test_a_federated_user_needs_no_password(db):
+    from cmdb.domain.services.users import create_user
+
+    user = create_user(db, "bob", oidc_subject="subject-abc")
+    assert user.password_hash is None
+    assert user.oidc_subject == "subject-abc"
+
+
+def test_authenticate_checks_the_password_and_the_active_flag(db):
+    from cmdb.domain.services.users import authenticate, create_user
+
+    create_user(db, "alice", password="s3cret-passphrase")
+    assert authenticate(db, "alice", "s3cret-passphrase") is not None
+    assert authenticate(db, "alice", "wrong") is None
+    assert authenticate(db, "nobody", "s3cret-passphrase") is None
+
+    user = authenticate(db, "alice", "s3cret-passphrase")
+    user.is_active = False
+    db.commit()
+    assert authenticate(db, "alice", "s3cret-passphrase") is None
+
+
+def test_a_password_only_user_cannot_be_authenticated_by_an_empty_password(db):
+    """A federated row has password_hash NULL; an empty form field must not
+    verify against it."""
+    from cmdb.domain.services.users import authenticate, create_user
+
+    create_user(db, "bob", oidc_subject="subject-abc")
+    assert authenticate(db, "bob", "") is None
+
+
+def test_set_password_and_delete(db):
+    from cmdb.domain.services.users import (
+        authenticate,
+        create_user,
+        delete_user,
+        set_password,
+    )
+
+    create_user(db, "alice", password="s3cret-passphrase")
+    set_password(db, "alice", "a-different-passphrase")
+    assert authenticate(db, "alice", "s3cret-passphrase") is None
+    assert authenticate(db, "alice", "a-different-passphrase") is not None
+
+    assert delete_user(db, "alice") is True
+    assert delete_user(db, "alice") is False
+
+
+def test_the_last_active_admin_cannot_be_removed_or_demoted(db):
+    """Locking yourself out of your own instance should take more than one
+    command. Recovery would mean hand-editing SQLite."""
+    from cmdb.domain.services.users import (
+        create_user,
+        delete_user,
+        set_admin,
+    )
+
+    create_user(db, "root", password="s3cret-passphrase", is_admin=True)
+    create_user(db, "alice", password="s3cret-passphrase")
+
+    with pytest.raises(ValueError, match="last active admin"):
+        delete_user(db, "root")
+    with pytest.raises(ValueError, match="last active admin"):
+        set_admin(db, "root", False)
+
+    # A second admin makes the first one removable.
+    set_admin(db, "alice", True)
+    assert delete_user(db, "root") is True
+
+
+def test_count_users(db):
+    from cmdb.domain.services.users import count_users, create_user
+
+    assert count_users(db) == 0
+    create_user(db, "alice", password="s3cret-passphrase")
+    assert count_users(db) == 1
+
+
+# --- First-run setup -------------------------------------------------------
+
+
+def test_login_sends_a_fresh_install_to_setup(gate_app):
+    """With no users there is nothing to log in as, so the login page would be a
+    dead end."""
+    app = gate_app("local")
+    with _client(app) as client:
+        r = client.get("/login")
+    assert r.status_code == 302
+    assert r.headers["location"] == "/setup"
+
+
+def test_setup_creates_the_first_admin_and_signs_them_in(gate_app, db):
+    from cmdb.domain.services.users import get_user_by_username
+
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        r = client.post(
+            "/setup",
+            data={
+                "username": "root",
+                "password": "a-long-enough-passphrase",
+                "confirm": "a-long-enough-passphrase",
+            },
+        )
+        assert r.status_code == 302
+        assert r.headers["location"] == "/"
+        assert client.get("/").status_code == 200
+
+    user = get_user_by_username(db, "root")
+    assert user is not None and user.is_admin is True
+    assert user.last_login_at is not None
+
+
+def test_setup_requires_the_password_twice(gate_app, db):
+    from cmdb.domain.services.users import count_users
+
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        r = client.post(
+            "/setup",
+            data={
+                "username": "root",
+                "password": "a-long-enough-passphrase",
+                "confirm": "something-else-entirely",
+            },
+        )
+    assert r.status_code == 400
+    assert "do not match" in r.text
+    assert count_users(db) == 0
+
+
+def test_setup_closes_itself_once_a_user_exists(gate_app, local_user):
+    """It must not become a permanent account-creation hole."""
+    app = gate_app("local")
+    with _client(app) as client:
+        assert client.get("/setup").status_code == 404
+        assert (
+            client.post(
+                "/setup",
+                data={"username": "x", "password": "y" * 16, "confirm": "y" * 16},
+            ).status_code
+            == 404
+        )
+
+
+def test_setup_is_absent_when_local_login_is_off(gate_app):
+    app = gate_app("proxy")
+    with _client(app) as client:
+        assert client.get("/setup").status_code == 404
+
+
+# --- The users CLI ---------------------------------------------------------
+
+
+def _patch_cli_session(db, monkeypatch):
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _fake_session():
+        yield db
+
+    monkeypatch.setattr("cmdb.cli.users.get_session", _fake_session)
+
+
+def test_cli_users_add_list_passwd_rm(db, monkeypatch):
+    from typer.testing import CliRunner
+
+    from cmdb.cli.main import app as cli
+    from cmdb.domain.services.users import authenticate, get_user_by_username
+
+    _patch_cli_session(db, monkeypatch)
+    runner = CliRunner()
+
+    r = runner.invoke(
+        cli,
+        ["users", "add", "alice", "--email", "a@example.test"],
+        input="a-long-enough-passphrase\na-long-enough-passphrase\n",
+    )
+    assert r.exit_code == 0, r.output
+    assert authenticate(db, "alice", "a-long-enough-passphrase") is not None
+
+    assert runner.invoke(cli, ["users", "promote", "alice"]).exit_code == 0
+    assert get_user_by_username(db, "alice").is_admin is True
+    # Demoting the only admin is refused for the same reason deleting one is.
+    assert runner.invoke(cli, ["users", "demote", "alice"]).exit_code == 1
+
+    assert runner.invoke(cli, ["users", "disable", "alice"]).exit_code == 1
+    db.refresh(get_user_by_username(db, "alice"))
+
+    r = runner.invoke(cli, ["users", "list"])
+    assert r.exit_code == 0
+    assert "alice" in r.output
+    assert "a@example.test" in r.output
+
+    r = runner.invoke(
+        cli,
+        ["users", "passwd", "alice"],
+        input="a-brand-new-passphrase\na-brand-new-passphrase\n",
+    )
+    assert r.exit_code == 0, r.output
+    assert authenticate(db, "alice", "a-brand-new-passphrase") is not None
+
+    # Demote via the service so the guard has a second admin to fall back on,
+    # then the delete is allowed.
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "root", password="a-long-enough-passphrase", is_admin=True)
+    r = runner.invoke(cli, ["users", "rm", "alice", "--yes"])
+    assert r.exit_code == 0, r.output
+    assert authenticate(db, "alice", "a-brand-new-passphrase") is None
+
+
+def test_cli_users_add_reports_a_duplicate_without_a_traceback(db, monkeypatch):
+    from typer.testing import CliRunner
+
+    from cmdb.cli.main import app as cli
+    from cmdb.domain.services.users import create_user
+
+    _patch_cli_session(db, monkeypatch)
+    create_user(db, "alice", password="a-long-enough-passphrase")
+
+    r = CliRunner().invoke(
+        cli,
+        ["users", "add", "alice"],
+        input="a-long-enough-passphrase\na-long-enough-passphrase\n",
+    )
+    assert r.exit_code == 1
+    assert "already exists" in r.output
+    assert "Traceback" not in r.output
+
+
+def test_cli_users_rm_refuses_the_last_admin(db, monkeypatch):
+    from typer.testing import CliRunner
+
+    from cmdb.cli.main import app as cli
+    from cmdb.domain.services.users import create_user
+
+    _patch_cli_session(db, monkeypatch)
+    create_user(db, "root", password="a-long-enough-passphrase", is_admin=True)
+
+    r = CliRunner().invoke(cli, ["users", "rm", "root", "--yes"])
+    assert r.exit_code == 1
+    assert "last active admin" in r.output

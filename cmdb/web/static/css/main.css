@@ -1085,3 +1085,12 @@ tr.row-link td a { color: inherit; }
   color: var(--text-main);
   border-color: var(--accent);
 }
+
+.auth-intro {
+  margin: 0 0 1.25rem;
+  font-size: .85rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.auth-optional { color: var(--text-subtle); }
