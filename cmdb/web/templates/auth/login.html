@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in · HomeLabCMDB</title>
+  <script>
+    /* Match the app's pre-paint theme selection so the login page does not flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem('cmdb-theme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version }}">
+</head>
+<body class="auth-body">
+  <main class="auth-shell">
+    <div class="auth-card">
+      <a href="/" class="brand auth-brand">HomeLab<span class="brand-mark">CMDB</span></a>
+
+      {% if error %}
+        <div class="flash-error" role="alert">{{ error }}</div>
+      {% endif %}
+
+      {% if local_enabled %}
+        <form method="post" action="/login" class="auth-form">
+          <input type="hidden" name="next" value="{{ next }}">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" value="{{ username or '' }}"
+                 autocomplete="username" autofocus required>
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password"
+                 autocomplete="current-password" required>
+          <button type="submit" class="auth-submit">Sign in</button>
+        </form>
+      {% endif %}
+
+      {% if local_enabled and oidc_enabled %}
+        <div class="auth-divider"><span>or</span></div>
+      {% endif %}
+
+      {% if oidc_enabled %}
+        <a class="auth-sso" href="/auth/oidc/login?next={{ next | urlencode }}">
+          Sign in with {{ oidc_display_name }}
+        </a>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

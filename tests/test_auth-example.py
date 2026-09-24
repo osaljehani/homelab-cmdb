@@ -302,3 +302,422 @@ def test_verify_rejects_malformed_or_absent_hashes():
 
     for stored in (None, "", "not-a-hash", "scrypt$x$8$1$aa$bb", "bcrypt$1$2$3$4$5"):
         assert verify_password("anything", stored) is False
+
+
+# --- The gate --------------------------------------------------------------
+
+
+@pytest.fixture
+def gate_app(clean_env, db, monkeypatch):
+    """Factory building a fresh app for a given CMDB_AUTH_MODE.
+
+    create_app() is a factory for exactly this reason: the middleware stack is
+    assembled at build time, so a mode change needs a new app rather than a
+    patched setting. The DB is redirected twice over -- the FastAPI dependency
+    for routes, and cmdb.web.auth.session.get_session for the middleware, which
+    resolves a principal outside the request/dependency cycle.
+    """
+    from contextlib import contextmanager
+
+    from cmdb.config import settings as cfg
+    from cmdb.web import app as web_app
+    from cmdb.web.deps import get_db_dep
+    import cmdb.web.auth.session as session_mod
+
+    monkeypatch.setattr(web_app, "run_migrations", lambda *a, **k: None, raising=False)
+    monkeypatch.setattr(cfg, "secret_key", "test-secret-key-not-a-real-one")
+
+    @contextmanager
+    def _fake_get_session():
+        yield db
+
+    monkeypatch.setattr(session_mod, "get_session", _fake_get_session)
+
+    def build(mode: str, **overrides):
+        monkeypatch.setattr(cfg, "auth_mode", mode)
+        for name, value in overrides.items():
+            monkeypatch.setattr(cfg, name, value)
+        app = web_app.create_app()
+        app.dependency_overrides[get_db_dep] = lambda: db
+        return app
+
+    return build
+
+
+def _client(app, **kwargs):
+    from fastapi.testclient import TestClient
+
+    kwargs.setdefault("follow_redirects", False)
+    return TestClient(app, **kwargs)
+
+
+PROXY_HEADERS = {
+    "X-authentik-username": "someone",
+    "X-authentik-email": "someone@example.test",
+    "X-authentik-groups": f"{GROUP}|example-users",
+}
+
+
+@pytest.mark.parametrize("mode", ["local", "proxy", "local,oidc"])
+def test_mcp_stays_a_401_challenge_under_every_auth_mode(gate_app, monkeypatch, mode):
+    """The assertion this whole file exists for.
+
+    /mcp is exempt from the Authentik proxy, so cmdb/mcp/auth.py is the only
+    boundary on that path. Starlette middleware wraps every route including the
+    absolute ones attach_remote_mcp() appends, so a gate that redirected them
+    would turn a token challenge a cloud client can act on into a login page it
+    cannot -- exactly the failure the outpost carve-out exists to avoid.
+    """
+    if "oidc" in mode:
+        _oidc_env(monkeypatch)
+    app = gate_app(
+        mode,
+        mcp_remote_enabled=True,
+        mcp_issuer_url=ISSUER,
+        mcp_jwks_url=ISSUER + "jwks/",
+        mcp_audience=CLIENT_ID,
+        mcp_resource_url="https://cmdb.example.test/mcp",
+        mcp_allowed_hosts="testserver,cmdb.example.test",
+        mcp_required_groups=GROUP,
+    )
+    with _client(app) as client:
+        r = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={"accept": "application/json, text/event-stream"},
+        )
+        assert r.status_code == 401, f"{mode}: got {r.status_code}, a redirect would break the connector"
+        assert "www-authenticate" in r.headers
+
+        meta = client.get("/.well-known/oauth-protected-resource/mcp")
+        assert meta.status_code == 200
+        assert meta.json()["resource"] == "https://cmdb.example.test/mcp"
+
+
+def test_mcp_exempt_set_is_empty_when_the_remote_endpoint_is_off(gate_app):
+    """Derived from the registered routes, so it cannot exempt a path that
+    attach_remote_mcp() did not actually create."""
+    from cmdb.web.auth.middleware import AuthMiddleware
+
+    app = gate_app("proxy")
+    found = [m for m in app.user_middleware if m.cls is AuthMiddleware]
+    assert len(found) == 1
+    assert found[0].kwargs["mcp_paths"] == frozenset()
+
+    with _client(app) as client:
+        # Gated like any other unknown path, which is what proves it is not
+        # exempt -- and a 404 behind the gate, which proves nothing is serving
+        # it. An exempt /mcp with no endpoint would 404 anonymously instead.
+        assert client.post("/mcp", json={}).status_code == 302
+        assert client.post("/mcp", json={}, headers=PROXY_HEADERS).status_code == 404
+
+
+def test_anonymous_ui_request_redirects_to_login(gate_app):
+    app = gate_app("local")
+    with _client(app) as client:
+        r = client.get("/hosts")
+    assert r.status_code == 302
+    assert r.headers["location"] == "/login?next=%2Fhosts"
+
+
+def test_anonymous_api_request_gets_401_json_not_a_redirect(gate_app):
+    """A 302 to an HTML login page is useless to an API client."""
+    app = gate_app("local")
+    with _client(app) as client:
+        r = client.get("/api/v1/hosts")
+    assert r.status_code == 401
+    assert r.json()["detail"]
+
+
+def test_healthz_is_gated_so_session_js_can_detect_a_lapse(gate_app):
+    """static/js/session.js reads a same-origin redirect on /healthz as the
+    lapse signal. Leaving it open would make the probe answer 200 forever and
+    the stale-session banner would silently never appear again."""
+    app = gate_app("local")
+    with _client(app) as client:
+        assert client.get("/healthz").status_code == 302
+        client.cookies.clear()
+        assert client.get("/healthz", headers=PROXY_HEADERS).status_code == 302
+
+    app = gate_app("proxy")
+    with _client(app) as client:
+        assert client.get("/healthz").status_code == 302
+        assert client.get("/healthz", headers=PROXY_HEADERS).status_code == 200
+
+
+def test_static_and_login_are_reachable_anonymously(gate_app):
+    app = gate_app("local")
+    with _client(app) as client:
+        assert client.get("/static/js/session.js").status_code == 200
+        assert client.get("/login").status_code == 200
+
+
+def test_none_mode_leaves_every_path_open(gate_app):
+    """Byte-identical to the app before any of this existed."""
+    app = gate_app("none")
+    with _client(app) as client:
+        assert client.get("/").status_code == 200
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/api/v1/hosts").status_code == 200
+
+
+def test_proxy_headers_authenticate_in_proxy_mode(gate_app):
+    app = gate_app("proxy")
+    with _client(app) as client:
+        r = client.get("/", headers=PROXY_HEADERS)
+    assert r.status_code == 200
+    assert "someone" in r.text
+
+
+def test_proxy_headers_are_ignored_outside_proxy_mode(gate_app):
+    """Header trust is safe only because :8080 is closed to the LAN. Honouring
+    these in local mode would let anyone who reaches the port assert any
+    identity, with no reverse proxy involved at all."""
+    app = gate_app("local")
+    with _client(app) as client:
+        r = client.get("/", headers=PROXY_HEADERS)
+    assert r.status_code == 302
+    assert r.headers["location"].startswith("/login")
+
+
+def test_required_groups_deny_a_principal_outside_the_group(gate_app):
+    app = gate_app("proxy", auth_required_groups="homelab-admins")
+    with _client(app) as client:
+        assert client.get("/", headers=PROXY_HEADERS).status_code == 403
+        allowed = dict(PROXY_HEADERS, **{"X-authentik-groups": "homelab-admins"})
+        assert client.get("/", headers=allowed).status_code == 200
+
+
+def test_proxy_mode_needs_the_username_header(gate_app):
+    app = gate_app("proxy")
+    with _client(app) as client:
+        no_user = {k: v for k, v in PROXY_HEADERS.items() if "username" not in k}
+        assert client.get("/", headers=no_user).status_code == 302
+
+
+@pytest.mark.parametrize(
+    "target",
+    ["https://evil.example/", "//evil.example/", "/\\evil.example", "not-a-path"],
+)
+def test_next_is_restricted_to_a_local_path(gate_app, target):
+    """An open redirect on the login page would let a phishing link bounce a
+    freshly-authenticated user off-site."""
+    from cmdb.web.auth.middleware import safe_next
+
+    assert safe_next(target) == "/"
+    assert safe_next("/hosts?q=1") == "/hosts?q=1"
+
+
+def test_cross_origin_post_is_rejected(gate_app):
+    """A session cookie is new CSRF surface: before this there were no cookies
+    at all. SameSite=Lax already blocks the cross-site form POST; the Origin
+    check is the belt-and-braces half."""
+    app = gate_app("proxy")
+    with _client(app) as client:
+        hostile = dict(PROXY_HEADERS, Origin="https://evil.example")
+        assert client.post("/collect/run", headers=hostile).status_code == 403
+        friendly = dict(PROXY_HEADERS, Origin="http://testserver")
+        assert client.post("/collect/run", headers=friendly).status_code != 403
+
+
+def test_session_cookie_is_hardened(gate_app):
+    """HttpOnly, SameSite=Lax and Secure are what make the CSRF story hold."""
+    from cmdb.web.auth.session import session_cookie_kwargs
+
+    kwargs = session_cookie_kwargs()
+    assert kwargs["https_only"] is True
+    assert kwargs["same_site"] == "lax"
+    assert kwargs["max_age"] == 43200
+
+
+def test_session_middleware_is_absent_in_sessionless_modes(gate_app):
+    """proxy and none sign nothing, so they mount no cookie machinery."""
+    from starlette.middleware.sessions import SessionMiddleware
+
+    for mode in ("none", "proxy"):
+        app = gate_app(mode)
+        assert not [m for m in app.user_middleware if m.cls is SessionMiddleware]
+
+    app = gate_app("local")
+    assert [m for m in app.user_middleware if m.cls is SessionMiddleware]
+
+
+def test_session_middleware_wraps_the_gate(gate_app):
+    """Ordering is load-bearing and counter-intuitive: add_middleware inserts at
+    index 0 and the stack is built from reversed(user_middleware), so the LAST
+    middleware added is the OUTERMOST. The gate reads request.session, so
+    SessionMiddleware has to be added after it."""
+    from starlette.middleware.sessions import SessionMiddleware
+
+    from cmdb.web.auth.middleware import AuthMiddleware
+
+    app = gate_app("local")
+    classes = [m.cls for m in app.user_middleware]
+    assert classes.index(SessionMiddleware) < classes.index(AuthMiddleware)
+
+
+# --- Local login -----------------------------------------------------------
+
+PASSWORD = "correct horse battery staple"
+
+
+@pytest.fixture(autouse=True)
+def _reset_throttle():
+    from cmdb.web.auth import throttle
+
+    throttle.reset()
+    yield
+    throttle.reset()
+
+
+@pytest.fixture
+def local_user(db):
+    from cmdb.domain.models import User
+    from cmdb.web.auth.passwords import hash_password
+
+    user = User(
+        username="admin",
+        email="admin@example.test",
+        password_hash=hash_password(PASSWORD),
+        is_admin=True,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    return user
+
+
+def _tls_client(app):
+    """https base_url, because the session cookie carries Secure by default --
+    an http client would accept it and then never send it back."""
+    return _client(app, base_url="https://testserver")
+
+
+def test_local_login_starts_a_session(gate_app, local_user):
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        r = client.post("/login", data={"username": "admin", "password": PASSWORD})
+        assert r.status_code == 302
+        assert r.headers["location"] == "/"
+
+        page = client.get("/")
+        assert page.status_code == 200
+        assert "admin" in page.text
+    assert local_user.last_login_at is not None
+
+
+def test_logout_ends_the_session(gate_app, local_user):
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        client.post("/login", data={"username": "admin", "password": PASSWORD})
+        assert client.get("/").status_code == 200
+
+        out = client.post("/logout")
+        assert out.status_code == 302
+        assert out.headers["location"] == "/login"
+        assert client.get("/").status_code == 302
+
+
+@pytest.mark.parametrize(
+    "username,password",
+    [("admin", "wrong"), ("nobody", PASSWORD), ("nobody", "wrong")],
+)
+def test_bad_credentials_are_indistinguishable(gate_app, local_user, username, password):
+    """A wrong password and a non-existent account must look the same, or the
+    login form becomes a user-enumeration oracle."""
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        r = client.post("/login", data={"username": username, "password": password})
+    assert r.status_code == 401
+    assert "Incorrect username or password." in r.text
+    assert "set-cookie" not in r.headers
+
+
+def test_an_inactive_user_cannot_log_in(gate_app, local_user, db):
+    local_user.is_active = False
+    db.commit()
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        r = client.post("/login", data={"username": "admin", "password": PASSWORD})
+    assert r.status_code == 401
+
+
+def test_deactivating_a_user_ends_their_session_immediately(gate_app, local_user, db):
+    """The principal is resolved against the DB on every request, so `is_active`
+    is a kill switch rather than something that waits for the cookie to expire."""
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        client.post("/login", data={"username": "admin", "password": PASSWORD})
+        assert client.get("/").status_code == 200
+
+        local_user.is_active = False
+        db.commit()
+        assert client.get("/").status_code == 302
+
+
+def test_repeated_failures_lock_the_account_out(gate_app, local_user):
+    from cmdb.web.auth.throttle import MAX_FAILURES
+
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        for _ in range(MAX_FAILURES):
+            assert (
+                client.post(
+                    "/login", data={"username": "admin", "password": "wrong"}
+                ).status_code
+                == 401
+            )
+        locked = client.post("/login", data={"username": "admin", "password": PASSWORD})
+    assert locked.status_code == 429
+    assert "Too many failed attempts" in locked.text
+
+
+def test_login_honours_a_local_next_and_drops_an_external_one(gate_app, local_user):
+    app = gate_app("local")
+    with _tls_client(app) as client:
+        good = client.post(
+            "/login",
+            data={"username": "admin", "password": PASSWORD, "next": "/images"},
+        )
+        assert good.headers["location"] == "/images"
+
+    with _tls_client(app) as client:
+        bad = client.post(
+            "/login",
+            data={
+                "username": "admin",
+                "password": PASSWORD,
+                "next": "https://evil.example/",
+            },
+        )
+        assert bad.headers["location"] == "/"
+
+
+def test_required_groups_do_not_lock_out_a_local_account(gate_app, local_user):
+    """The group requirement applies to identities that carry groups -- proxy and
+    oidc -- not to local rows, which have none and would otherwise be denied
+    unconditionally. There is no self-registration, so every local row was
+    created deliberately; this is what lets `local,oidc` mean "group-gated SSO
+    plus a break-glass password"."""
+    app = gate_app("local", auth_required_groups="example-admins")
+    with _tls_client(app) as client:
+        client.post("/login", data={"username": "admin", "password": PASSWORD})
+        assert client.get("/").status_code == 200
+
+
+def test_login_page_redirects_away_in_proxy_mode(gate_app):
+    """There is nothing for it to offer: the outpost owns the login experience."""
+    app = gate_app("proxy")
+    with _client(app) as client:
+        r = client.get("/login")
+    assert r.status_code == 302
+    assert r.headers["location"] == "/"
+
+
+def test_login_page_offers_both_doors_when_both_are_enabled(gate_app, monkeypatch):
+    _oidc_env(monkeypatch)
+    app = gate_app("local,oidc", oidc_display_name="Example SSO")
+    with _client(app) as client:
+        body = client.get("/login").text
+    assert 'name="password"' in body
+    assert "Sign in with Example SSO" in body

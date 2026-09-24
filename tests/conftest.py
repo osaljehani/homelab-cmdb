@@ -1,3 +1,12 @@
+import os
+
+# Before anything imports cmdb.config. Settings.resolved_secret_key() generates
+# and persists a key beside the DB when CMDB_SECRET_KEY is still the shipped
+# default and a session-bearing mode is active -- which is the correct
+# production behaviour, but in a test run it would drop a .secret_key file in
+# the repo just by importing cmdb.web.app.
+os.environ.setdefault("CMDB_SECRET_KEY", "test-secret-key-not-a-real-one")
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -48,6 +57,21 @@ _SAMPLE_FACTS = {
         "ansible_devices": {},
     }
 }
+
+
+@pytest.fixture(autouse=True)
+def default_auth_mode(monkeypatch):
+    """Keep the pre-authentication behaviour as the suite-wide baseline.
+
+    CMDB_AUTH_MODE defaults to `local`, so without this every web test would get
+    a 302 to /login instead of the page it asserts on. Tests that are *about*
+    authentication opt back in by setting the mode themselves (see the gate_app
+    fixture in tests/test_auth.py), which wins because it happens inside the
+    test body.
+    """
+    from cmdb.config import settings
+
+    monkeypatch.setattr(settings, "auth_mode", "none", raising=False)
 
 
 @pytest.fixture
