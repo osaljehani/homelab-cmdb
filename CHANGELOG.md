@@ -7,7 +7,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Stale-session guard (`static/js/session.js`). CMDB behind a forward-auth proxy used to make an
+  expired login look like the application rejecting a valid action: a plain form POST lost its body
+  on the redirect and landed on the login page, and a mutating htmx action just failed mid-card.
+  Mutating forms now pre-flight a new cheap `GET /healthz` and htmx failures re-probe it, showing an
+  inline "Session expired" banner instead. Fails open — a broken probe never blocks a legitimate
+  action, and a network fault is never mislabelled as an expired login.
+
 ### Fixed
+
+- `POST /import/upload` returned HTTP 500 on any file that is not valid JSON (malformed JSON, or a
+  binary file). `ansible.import_from_path` now treats an unparseable file as a failed host, like the
+  docker/k8s/trivy importers already did, so the page renders the error and the rest of the
+  directory still imports. Also fixes `cmdb import ansible` on the CLI.
 
 - UNKNOWN-severity findings (unrated CVEs — e.g. Debian "unimportant" entries or CVEs awaiting NVD
   analysis) were counted in every stored total but invisible in the UI, so the dashboard severity

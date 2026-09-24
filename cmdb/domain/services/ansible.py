@@ -124,7 +124,19 @@ def import_from_path(session: Session, path: str, source: ImportSource) -> Impor
     errors: list[str] = []
 
     for f in files:
-        for i, data in enumerate(_parse_file(f)):
+        # Unparseable input is a failed host, not a crash: json.JSONDecodeError
+        # (malformed JSON) and UnicodeDecodeError (binary file) are both
+        # ValueError, and both used to escape as an unhandled 500 on
+        # POST /import/upload. The sibling importers guard their json.loads the
+        # same way; keep the message text identical so logs read consistently.
+        try:
+            parsed = _parse_file(f)
+        except ValueError as e:
+            failed += 1
+            errors.append(f"{f.name}: JSON parse error: {e}")
+            continue
+
+        for i, data in enumerate(parsed):
             label = f"{f.name}[{i}]" if i else f.name
             try:
                 import_host(session, data)

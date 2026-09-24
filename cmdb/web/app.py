@@ -65,6 +65,19 @@ def create_app() -> FastAPI:
     app.include_router(network.router, prefix="/network")
     app.include_router(api.router, prefix="/api/v1", tags=["api"])
 
+    @app.get("/healthz", include_in_schema=False)
+    def healthz() -> dict[str, bool]:
+        """Cheap, DB-free liveness probe -- also what static/js/session.js polls
+        before letting a mutating form submit.
+
+        MUST stay *behind* the reverse proxy's auth (i.e. never added to
+        `skip_path_regex` in authentik/blueprints/60-app-cmdb.yaml). Being
+        behind it is the whole point: a lapsed browser session makes this 302
+        to the login page, which is the signal session.js reads. Exempting it
+        "so monitoring can reach it" would make the probe answer 200 forever
+        and the stale-session banner would silently never appear again."""
+        return {"ok": True}
+
     # Appended LAST so every route above wins and unmatched paths still get
     # FastAPI's own 404 rather than the sub-app's. Returns None -- registering
     # nothing at all -- unless CMDB_MCP_REMOTE_ENABLED is set.
