@@ -24,3 +24,5 @@ inventory/
 data/*.bak*
 # Local, site-specific deployment override (bind address / ports). Never publish.
 docker-compose.override.yml
+# Auto-generated session signing key (see Settings.resolved_secret_key). Never commit.
+data/.secret_key
