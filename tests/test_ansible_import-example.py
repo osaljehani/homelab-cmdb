@@ -60,6 +60,32 @@ def test_import_from_path_single_file(db, tmp_path, host_facts):
     assert log.hosts_failed == 0
 
 
+def test_import_from_path_malformed_json_does_not_raise(db, tmp_path):
+    (tmp_path / "broken.json").write_text('{"ansible_facts": {"ansible_hostn')
+    log = import_from_path(db, str(tmp_path), ImportSource.CLI)
+    assert log.hosts_upserted == 0
+    assert log.hosts_failed == 1
+    assert "JSON parse error" in log.notes
+
+
+def test_import_from_path_binary_file_does_not_raise(db, tmp_path):
+    (tmp_path / "facts.tar.gz").write_bytes(b"\x1f\x8b\x08\x00\xff\xfe\xfd\xfc")
+    log = import_from_path(db, str(tmp_path), ImportSource.CLI)
+    assert log.hosts_upserted == 0
+    assert log.hosts_failed == 1
+    assert "JSON parse error" in log.notes
+
+
+def test_import_from_path_good_file_survives_bad_sibling(db, tmp_path, host_facts):
+    import json
+
+    (tmp_path / "broken.json").write_text("not json at all")
+    (tmp_path / "testhost").write_text(json.dumps(host_facts))
+    log = import_from_path(db, str(tmp_path), ImportSource.CLI)
+    assert log.hosts_upserted == 1
+    assert log.hosts_failed == 1
+
+
 def test_import_multi_host_stdout_file(db, tmp_path, host_facts, host_facts_alt):
     import json
     block1 = json.dumps(host_facts)

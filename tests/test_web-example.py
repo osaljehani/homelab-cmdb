@@ -31,6 +31,22 @@ def test_dashboard_loads(client):
     assert "HomeLabCMDB" in r.text
 
 
+def test_healthz(client):
+    r = client.get("/healthz")
+    assert r.status_code == 200
+    assert r.json() == {"ok": True}
+
+
+def test_static_session_js_served(client):
+    r = client.get("/static/js/session.js")
+    assert r.status_code == 200
+
+
+def test_base_page_loads_session_guard(client):
+    r = client.get("/")
+    assert "/static/js/session.js" in r.text
+
+
 def test_dashboard_shows_host_count(populated_client):
     r = populated_client.get("/")
     assert r.status_code == 200
