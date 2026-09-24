@@ -111,6 +111,13 @@ class Settings(BaseSettings):
     oidc_groups_claim: str = "groups"
     # What the login button says: "Sign in with <this>".
     oidc_display_name: str = "SSO"
+    # Off by default, and deliberately so. An IdP that will provision an account
+    # for whoever completes a login is how "add a federated source" silently
+    # becomes "anyone with an account there is now a user here" -- the same gap
+    # Authentik's own default-source-enrollment flow leaves open. With this off,
+    # a federated login can only bind to a row an operator already created (by
+    # matching username, once), and an unknown identity is refused.
+    oidc_auto_create_users: bool = False
 
     # --- Remote MCP over HTTP (CMDB_MCP_*) ---------------------------------
     #

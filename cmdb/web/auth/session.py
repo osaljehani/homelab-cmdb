@@ -21,6 +21,8 @@ from cmdb.web.auth.principal import Principal
 # readable by the user it belongs to. Only the row id and the auth time.
 SESSION_USER_ID = "uid"
 SESSION_AUTH_AT = "at"
+SESSION_GROUPS = "grp"
+SESSION_SOURCE = "src"
 
 
 def session_cookie_kwargs() -> dict:
@@ -40,12 +42,29 @@ def session_cookie_kwargs() -> dict:
     }
 
 
-def start_session(request, user: User) -> None:
+def start_session(
+    request,
+    user: User,
+    *,
+    groups: frozenset[str] = frozenset(),
+    source: str = "local",
+) -> None:
     """Record a successful login. Clears first, so a fixated session id cannot
-    survive the privilege change."""
+    survive the privilege change.
+
+    ``groups`` are the ones the identity provider asserted at this login. They
+    live in the (signed) cookie because there is no way to re-ask the IdP on
+    every request the way the MCP path re-checks its token. The consequence is
+    worth knowing: a group removal takes effect at the next login or when the
+    session expires, not instantly -- unlike `is_active`, which is read from the
+    database every request. CMDB_SESSION_MAX_AGE bounds that staleness.
+    """
     request.session.clear()
     request.session[SESSION_USER_ID] = user.id
     request.session[SESSION_AUTH_AT] = int(time.time())
+    request.session[SESSION_SOURCE] = source
+    if groups:
+        request.session[SESSION_GROUPS] = sorted(groups)
 
 
 def end_session(request) -> None:
@@ -70,6 +89,7 @@ def principal_from_session(session: dict) -> Principal | None:
         return Principal(
             username=user.username,
             email=user.email,
+            groups=frozenset(session.get(SESSION_GROUPS) or ()),
             is_admin=bool(user.is_admin),
-            source="oidc" if user.oidc_subject and not user.password_hash else "local",
+            source=session.get(SESSION_SOURCE) or "local",
         )

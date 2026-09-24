@@ -14,6 +14,8 @@ silently replace a token challenge with a login page.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from cmdb.config import DEFAULT_SECRET_KEY, Settings
@@ -997,3 +999,365 @@ def test_cli_users_rm_refuses_the_last_admin(db, monkeypatch):
     r = CliRunner().invoke(cli, ["users", "rm", "root", "--yes"])
     assert r.exit_code == 1
     assert "last active admin" in r.output
+
+
+# --- Federated (OIDC) login ------------------------------------------------
+
+AUTHORIZE_URL = ISSUER + "authorize/"
+TOKEN_URL = ISSUER + "token/"
+JWKS_URL = ISSUER + "jwks/"
+USERINFO_URL = "https://auth.example.test/application/o/userinfo/"
+OIDC_SUBJECT = "subject-abcdef"
+OIDC_KID = "oidc-test-key"
+
+
+@pytest.fixture(scope="module")
+def oidc_key():
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+@pytest.fixture
+def idp(oidc_key, monkeypatch):
+    """A mock identity provider on httpx.MockTransport.
+
+    Returns a handle whose `token_response` the test sets before driving the
+    callback -- the nonce is generated inside /auth/oidc/login, so the id_token
+    can only be minted once the test has read it back off the redirect.
+    """
+    import json as _json
+
+    import httpx as _httpx
+    import jwt as _jwt
+
+    from cmdb.web.auth import oidc as oidc_mod
+
+    oidc_mod.reset_caches()
+
+    pub = _jwt.algorithms.RSAAlgorithm.to_jwk(oidc_key.public_key(), as_dict=True)
+    pub.update({"kid": OIDC_KID, "use": "sig", "alg": "RS256"})
+
+    discovery = {
+        "issuer": ISSUER,
+        "authorization_endpoint": AUTHORIZE_URL,
+        "token_endpoint": TOKEN_URL,
+        "jwks_uri": JWKS_URL,
+        "userinfo_endpoint": USERINFO_URL,
+    }
+
+    class Handle:
+        token_response = None
+        token_status = 200
+        userinfo = {}
+        calls = {"token": 0, "jwks": 0, "userinfo": 0}
+
+        def id_token(self, *, nonce, **overrides):
+            now = int(time.time())
+            claims = {
+                "iss": ISSUER,
+                "aud": CLIENT_ID,
+                "sub": OIDC_SUBJECT,
+                "iat": now,
+                "exp": now + 300,
+                "nonce": nonce,
+                "preferred_username": "someone",
+                "email": "someone@example.test",
+                "groups": [GROUP],
+            }
+            claims.update(overrides)
+            return _jwt.encode(
+                claims, oidc_key, algorithm="RS256", headers={"kid": OIDC_KID}
+            )
+
+        def tokens_for(self, *, nonce, **overrides):
+            self.token_response = {
+                "access_token": "an-access-token",
+                "token_type": "Bearer",
+                "id_token": self.id_token(nonce=nonce, **overrides),
+            }
+
+    handle = Handle()
+
+    def responder(request: _httpx.Request) -> _httpx.Response:
+        url = str(request.url)
+        if url.endswith(".well-known/openid-configuration"):
+            return _httpx.Response(200, json=discovery)
+        if url == JWKS_URL:
+            handle.calls["jwks"] += 1
+            return _httpx.Response(200, json={"keys": [pub]})
+        if url == TOKEN_URL:
+            handle.calls["token"] += 1
+            if handle.token_status != 200:
+                return _httpx.Response(handle.token_status, text="nope")
+            return _httpx.Response(200, content=_json.dumps(handle.token_response))
+        if url == USERINFO_URL:
+            handle.calls["userinfo"] += 1
+            return _httpx.Response(200, json=handle.userinfo)
+        return _httpx.Response(404)
+
+    real = _httpx.AsyncClient
+
+    def patched(*args, **kwargs):
+        kwargs["transport"] = _httpx.MockTransport(responder)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(oidc_mod.httpx, "AsyncClient", patched)
+    yield handle
+    oidc_mod.reset_caches()
+
+
+@pytest.fixture
+def oidc_app(gate_app, monkeypatch, idp):
+    """The routes read the `settings` singleton, which was built at import time --
+    so setting the environment (as the config tests do) is not enough here; the
+    singleton's attributes have to be patched."""
+    _oidc_env(monkeypatch)
+
+    def build(mode="oidc", **overrides):
+        return gate_app(
+            mode,
+            oidc_issuer_url=ISSUER,
+            oidc_client_id=CLIENT_ID,
+            oidc_client_secret=CLIENT_SECRET,
+            oidc_redirect_url=REDIRECT,
+            **overrides,
+        )
+
+    return build
+
+
+def _begin_oidc(client):
+    """Drive /auth/oidc/login and return (state, nonce) from the redirect."""
+    from urllib.parse import parse_qs, urlparse
+
+    r = client.get("/auth/oidc/login")
+    assert r.status_code == 302, r.text
+    query = parse_qs(urlparse(r.headers["location"]).query)
+    return r, query
+
+
+def test_oidc_login_redirects_with_pkce_and_a_nonce(oidc_app):
+
+    app = oidc_app()
+    with _tls_client(app) as client:
+        r, query = _begin_oidc(client)
+
+    assert r.headers["location"].startswith(AUTHORIZE_URL)
+    assert query["client_id"] == [CLIENT_ID]
+    assert query["redirect_uri"] == [REDIRECT]
+    assert query["response_type"] == ["code"]
+    assert query["code_challenge_method"] == ["S256"]
+    assert query["scope"] == ["openid profile email"]
+    assert len(query["state"][0]) > 20
+    assert len(query["nonce"][0]) > 20
+    # A base64url SHA-256, unpadded (RFC 7636 4.2). The verifier itself never
+    # leaves the server, so its value cannot be asserted from out here -- but its
+    # length and alphabet are fixed, and a verifier sent by mistake would fail
+    # both.
+    challenge = query["code_challenge"][0]
+    assert len(challenge) == 43
+    assert set(challenge) <= set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    )
+
+
+def test_oidc_callback_links_an_existing_account(oidc_app, idp, db):
+    """First federated login for an operator-created row binds the subject to it.
+    Auto-provisioning is off, so this is the only way in."""
+    from cmdb.domain.services.users import create_user, get_user_by_username
+
+    create_user(db, "someone", password="a-long-enough-passphrase")
+
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+        assert r.status_code == 302, r.text
+        assert r.headers["location"] == "/"
+        assert client.get("/").status_code == 200
+
+    user = get_user_by_username(db, "someone")
+    assert user.oidc_subject == OIDC_SUBJECT
+    assert user.last_login_at is not None
+
+
+def test_oidc_refuses_an_unprovisioned_identity(oidc_app, idp, db):
+    """The default. An IdP that provisions an account for whoever logs in is how
+    'add a federated source' silently becomes 'anyone there is a user here'."""
+    from cmdb.domain.services.users import count_users
+
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+
+    assert r.status_code == 403
+    assert "Ask an administrator" in r.text
+    assert count_users(db) == 0
+
+
+def test_oidc_auto_create_provisions_when_explicitly_enabled(oidc_app, idp, db):
+    from cmdb.domain.services.users import get_user_by_username
+
+    app = oidc_app(oidc_auto_create_users=True)
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+        assert r.status_code == 302, r.text
+
+    user = get_user_by_username(db, "someone")
+    assert user is not None
+    assert user.oidc_subject == OIDC_SUBJECT
+    assert user.password_hash is None
+    assert user.is_admin is False
+
+
+def test_oidc_never_rebinds_a_username_owned_by_another_subject(oidc_app, idp, db):
+    """Two federated identities must not be able to contend for one username."""
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "someone", oidc_subject="a-different-subject")
+
+    app = oidc_app(oidc_auto_create_users=True)
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+    assert r.status_code == 403
+
+
+def test_oidc_rejects_a_mismatched_state(oidc_app, idp):
+    """state is the callback's CSRF defence."""
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        r = client.get("/auth/oidc/callback?code=xyz&state=not-the-issued-state")
+    assert r.status_code == 401
+    assert "did not come from this browser" in r.text
+    assert idp.calls["token"] == 0, "must refuse before redeeming the code"
+
+
+def test_oidc_rejects_a_replayed_nonce(oidc_app, idp, db):
+    """The nonce binds the id_token to this login attempt, so a token minted for
+    a different one must not be accepted."""
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "someone", password="a-long-enough-passphrase")
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce="a-nonce-from-some-other-attempt")
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+    assert r.status_code == 401
+    assert client.get("/").status_code == 302
+
+
+def test_oidc_rejects_a_token_minted_for_another_application(oidc_app, idp, db):
+    """Same IdP, different client_id. Without the aud check every application on
+    the IdP could mint a login for this one."""
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "someone", password="a-long-enough-passphrase")
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0], aud="some-other-client")
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+    assert r.status_code == 401
+
+
+def test_oidc_rejects_a_foreign_issuer(oidc_app, idp, db):
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "someone", password="a-long-enough-passphrase")
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(
+            nonce=query["nonce"][0], iss="https://auth.evil.test/application/o/x/"
+        )
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+    assert r.status_code == 401
+
+
+def test_oidc_surfaces_a_provider_refusal(oidc_app, idp):
+    app = oidc_app()
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        r = client.get(
+            f"/auth/oidc/callback?error=access_denied&state={query['state'][0]}"
+        )
+    assert r.status_code == 401
+    assert "refused the login" in r.text
+
+
+def test_oidc_surfaces_a_token_endpoint_failure(oidc_app, idp, db):
+    app = oidc_app()
+    idp.token_status = 400
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        r = client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+    assert r.status_code == 401
+    # The token endpoint's body can echo the code back; it must not be shown.
+    assert "xyz" not in r.text
+
+
+def test_oidc_groups_feed_the_required_group_gate(oidc_app, idp, db):
+    """The IdP's groups ride in the signed session, because there is no way to
+    re-ask it on every request."""
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "someone", password="a-long-enough-passphrase")
+
+    app = oidc_app(auth_required_groups=GROUP)
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        assert (
+            client.get(
+                f"/auth/oidc/callback?code=xyz&state={query['state'][0]}"
+            ).status_code
+            == 302
+        )
+        assert client.get("/").status_code == 200
+
+    app = oidc_app(auth_required_groups="a-group-they-are-not-in")
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0])
+        client.get(f"/auth/oidc/callback?code=xyz&state={query['state'][0]}")
+        assert client.get("/").status_code == 403
+
+
+def test_oidc_falls_back_to_userinfo_for_groups(oidc_app, idp, db):
+    """Authentik has no `groups` scope -- the claim rides on the stock `profile`
+    mapping -- so the fallback is for providers that only expose it here."""
+    from cmdb.domain.services.users import create_user
+
+    create_user(db, "someone", password="a-long-enough-passphrase")
+    idp.userinfo = {"groups": [GROUP]}
+
+    app = oidc_app(auth_required_groups=GROUP)
+    with _tls_client(app) as client:
+        _, query = _begin_oidc(client)
+        idp.tokens_for(nonce=query["nonce"][0], groups=None)
+        assert (
+            client.get(
+                f"/auth/oidc/callback?code=xyz&state={query['state'][0]}"
+            ).status_code
+            == 302
+        )
+        assert client.get("/").status_code == 200
+    assert idp.calls["userinfo"] == 1
+
+
+def test_oidc_routes_are_absent_when_the_mode_is_off(gate_app, local_user):
+    app = gate_app("local")
+    with _client(app) as client:
+        assert client.get("/auth/oidc/login").status_code == 404
+        assert client.get("/auth/oidc/callback?code=x&state=y").status_code == 404
