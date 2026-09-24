@@ -196,3 +196,109 @@ def test_required_groups_default_to_any_authenticated_user(clean_env):
 def test_required_groups_parse_as_csv(clean_env):
     clean_env.setenv("CMDB_AUTH_REQUIRED_GROUPS", f" {GROUP}, other ")
     assert Settings().auth_required_groups_set == frozenset({GROUP, "other"})
+
+
+# --- Model + migration -----------------------------------------------------
+
+
+def test_user_model_round_trips(db):
+    from cmdb.domain.models import User
+
+    db.add(User(username="alice", email="alice@example.test", is_admin=True))
+    db.commit()
+    row = db.query(User).filter_by(username="alice").one()
+    assert row.is_admin is True
+    assert row.is_active is True
+    assert row.password_hash is None  # an OIDC-only user has none
+    assert row.oidc_subject is None
+    assert row.last_login_at is None
+    assert row.created_at is not None
+
+
+def test_usernames_are_unique(db):
+    from sqlalchemy.exc import IntegrityError
+
+    from cmdb.domain.models import User
+
+    db.add(User(username="alice"))
+    db.commit()
+    db.add(User(username="alice"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_oidc_subject_is_unique(db):
+    """Two local users must never be able to claim one federated identity."""
+    from sqlalchemy.exc import IntegrityError
+
+    from cmdb.domain.models import User
+
+    db.add(User(username="alice", oidc_subject="subject-1"))
+    db.commit()
+    db.add(User(username="bob", oidc_subject="subject-1"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_migration_creates_the_users_table(tmp_path, monkeypatch):
+    """Migrations run automatically on web startup and on `cmdb mcp`, so the
+    table has to arrive that way and not via create_all."""
+    import cmdb.config
+    from sqlalchemy import create_engine, inspect
+
+    db_file = tmp_path / "migrated.db"
+    monkeypatch.setattr(cmdb.config.settings, "db_path", str(db_file))
+
+    from cmdb.db import run_migrations
+
+    run_migrations()
+
+    engine = create_engine(f"sqlite:///{db_file}")
+    inspector = inspect(engine)
+    assert "users" in inspector.get_table_names()
+    columns = {c["name"]: c for c in inspector.get_columns("users")}
+    engine.dispose()
+    assert set(columns) == {
+        "id",
+        "username",
+        "email",
+        "password_hash",
+        "oidc_subject",
+        "is_admin",
+        "is_active",
+        "created_at",
+        "last_login_at",
+    }
+    assert columns["password_hash"]["nullable"] is True
+    assert columns["username"]["nullable"] is False
+
+
+# --- Password hashing ------------------------------------------------------
+
+
+def test_password_round_trip():
+    from cmdb.web.auth.passwords import hash_password, verify_password
+
+    stored = hash_password("correct horse battery staple")
+    assert verify_password("correct horse battery staple", stored) is True
+    assert verify_password("wrong", stored) is False
+
+
+def test_password_hash_is_salted_and_self_describing():
+    from cmdb.web.auth.passwords import hash_password
+
+    a = hash_password("same")
+    b = hash_password("same")
+    assert a != b, "per-user random salt, so two hashes of one password differ"
+    scheme, n, r, p, salt, digest = a.split("$")
+    assert scheme == "scrypt"
+    assert (int(n), int(r), int(p)) == (2**15, 8, 1)
+    assert salt and digest
+
+
+def test_verify_rejects_malformed_or_absent_hashes():
+    """An OIDC-only user has password_hash=None; that must never verify."""
+    from cmdb.web.auth.passwords import verify_password
+
+    for stored in (None, "", "not-a-hash", "scrypt$x$8$1$aa$bb", "bcrypt$1$2$3$4$5"):
+        assert verify_password("anything", stored) is False
