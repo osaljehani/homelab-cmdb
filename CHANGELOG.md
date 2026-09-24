@@ -9,6 +9,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Authentication for the web UI.** `CMDB_AUTH_MODE` selects how, as a
+  comma-separated set rather than a single value, so one login page can offer more
+  than one door: `local` (the default — username and password against a new `users`
+  table), `oidc` (authorization code + PKCE against any OIDC provider),
+  `local,oidc` for both at once, `proxy` to trust a reverse proxy's headers, and
+  `none` for the previous behaviour. A fresh install needs no configuration: the
+  first request lands on a one-time `/setup` page that creates the administrator
+  and then returns 404, and the session key is generated on first boot and
+  persisted beside the database rather than shipped. Accounts are managed with a
+  new `cmdb users` command; there is no self-registration, and the last active
+  admin cannot be deleted, demoted or disabled. A federated login binds to an
+  existing account rather than provisioning one unless
+  `CMDB_OIDC_AUTO_CREATE_USERS` is set. `CMDB_AUTH_REQUIRED_GROUPS` restricts
+  access by group for federated and proxy identities.
+
+  `/mcp` and its RFC 9728 metadata document are exempt from the gate — they
+  authenticate their own bearer tokens, and a redirect there would replace a token
+  challenge with a login page no cloud client can complete. `/healthz` stays gated,
+  which is what keeps the stale-session banner working.
+
 - Stale-session guard (`static/js/session.js`). CMDB behind a forward-auth proxy used to make an
   expired login look like the application rejecting a valid action: a plain form POST lost its body
   on the redirect and landed on the login page, and a mutating htmx action just failed mid-card.

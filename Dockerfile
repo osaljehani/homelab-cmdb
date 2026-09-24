@@ -19,16 +19,19 @@ WORKDIR /app
 # against it. The `collect` group pulls ansible-core + paramiko (pure-Python SSH)
 # so the runtime needs no openssh-client. --no-dev drops the test/lint tooling.
 #
+# `oidc` is installed for the same reason `mcp` is: cmdb.config refuses to boot
+# when CMDB_AUTH_MODE includes `oidc` and the group is absent, so an image without
+# it turns enabling SSO into a restart loop rather than a working login.
 # `mcp` is NOT optional for the runtime image despite being an optional group:
 # `cmdb serve` imports cmdb.mcp.server to decide whether to mount /mcp, so
 # without it the whole web app fails to import, not just the MCP endpoint.
 RUN uv python install 3.13
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev --group collect --group mcp --no-install-project --frozen
+RUN uv sync --no-dev --group collect --group mcp --group oidc --no-install-project --frozen
 
 COPY cmdb/ cmdb/
 COPY alembic.ini ./
-RUN uv sync --no-dev --group collect --group mcp --frozen
+RUN uv sync --no-dev --group collect --group mcp --group oidc --frozen
 
 # ─── Runtime ─────────────────────────────────────────────────────────────────
 # distroless/cc = glibc + libgcc, nothing else. No perl-base, no openssh-client →
