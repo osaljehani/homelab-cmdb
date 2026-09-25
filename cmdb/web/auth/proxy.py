@@ -1,15 +1,16 @@
 """Identity asserted by a trusted reverse proxy.
 
-This is how the homelab deployment works: an Authentik proxy provider on the
-embedded outpost authenticates the request (SSO, MFA, group binding) and adds
-``X-authentik-username`` / ``-email`` / ``-groups``, and the app reads them.
+The typical arrangement: a forward-auth proxy (an Authentik proxy provider,
+oauth2-proxy, Traefik, Cloudflare Access) authenticates the request -- SSO, MFA,
+group membership -- and passes the result on as ``X-authentik-username`` /
+``-email`` / ``-groups``, which this module reads.
 
 **The trust is in the network path, not in the headers.** Anything that can
 reach the port can assert any username here -- there is no signature to check.
-That is only acceptable because the container publishes on ``172.17.0.1:8080``
-(docker0) and is closed to the LAN, so the sole route in is through the outpost.
-Publishing this port more widely, in any mode where these headers are honoured,
-hands out unauthenticated admin. Two consequences:
+That is only acceptable while the app's port is reachable *only* by the proxy:
+bound to a private interface, or published solely inside a container network.
+Binding it more widely, in any mode where these headers are honoured, hands out
+unauthenticated administrative access. Two consequences:
 
 * the headers are read **only** when ``proxy`` is in CMDB_AUTH_MODE, never as a
   fallback in ``local``/``oidc`` mode, where they carry no weight at all;
