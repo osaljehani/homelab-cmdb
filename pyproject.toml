@@ -19,6 +19,10 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    # First-party code imports it directly -- anyio.Lock() in cmdb/mcp/auth.py and
+    # to_thread.run_sync() in cmdb/mcp/server.py -- so it is a real dependency, not
+    # just the transitive one starlette/mcp happen to pull in.
+    "anyio>=4.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "sqlalchemy>=2.0",

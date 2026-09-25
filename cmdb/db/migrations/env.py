@@ -9,7 +9,12 @@ config = context.config
 config.set_main_option("sqlalchemy.url", settings.db_url)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, and alembic.ini's [loggers]
+    # lists only root/sqlalchemy/alembic. run_migrations() runs inside the web
+    # app's lifespan, i.e. AFTER uvicorn has created `uvicorn.access` -- so the
+    # default silently switched the access log off for the whole process on
+    # every boot. Startup lines printed, request lines never did.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
