@@ -308,6 +308,56 @@ def test_valid_token_exposes_exactly_the_read_only_tools(remote_app, rsa_key):
     assert "list_hosts" in names
 
 
+def test_tool_call_succeeds_over_the_transport(remote_app, rsa_key):
+    """A real tools/call, not just tools/list -- where the threadpool shim sits.
+
+    build_remote_mcp() registers ``_in_threadpool(fn)`` instead of ``fn``. A
+    wrapper that lost the original signature or return annotation still lists
+    fine; it only fails when something actually calls it.
+    """
+    with _client(remote_app) as client:
+        token = make_token(rsa_key)
+        _tools_list(client, token)
+        response = _rpc(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "list_hosts", "arguments": {}},
+            },
+            token,
+        )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "error" not in body, body
+    assert body["result"].get("isError") is not True, body
+    assert "testhost" in json.dumps(body["result"])
+
+
+def test_remote_tools_run_off_the_event_loop(remote_app):
+    """The remote instance awaits its tools; the module-level names stay sync.
+
+    Every tool is blocking SQLAlchemy, and the remote endpoint serves
+    concurrent HTTP requests, so registering them raw would let one query --
+    vuln_summary over 175k rows -- hold the event loop. Rebinding the
+    module-level names instead would break READ_ONLY_TOOLS and
+    tests/test_mcp.py, which call them directly.
+    """
+    import inspect
+
+    from cmdb.mcp import server
+
+    remote = server.build_remote_mcp()
+    registered = remote._tool_manager.get_tool("vuln_summary")
+    assert registered is not None
+    assert registered.is_async is True
+    assert registered.fn.__wrapped__ is server.vuln_summary
+    assert not inspect.iscoroutinefunction(server.vuln_summary)
+    # func_metadata follows __wrapped__, so the schema is the original's.
+    assert inspect.signature(registered.fn) == inspect.signature(server.vuln_summary)
+
+
 def test_stdio_server_is_unchanged_and_carries_all_tools():
     """The remote subset must not have been carved out of the stdio server."""
     import asyncio

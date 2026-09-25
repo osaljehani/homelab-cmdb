@@ -9,6 +9,9 @@ MCP tool errors the client surfaces to the user.
 Ansible-over-SSH subprocesses, which is slow and side-effectful.
 """
 
+import functools
+
+from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
 
 from cmdb.db.session import get_session
@@ -388,6 +391,31 @@ READ_ONLY_TOOLS = (
 )
 
 
+def _in_threadpool(fn):
+    """Return an async wrapper that runs a sync tool off the event loop.
+
+    Every tool here is synchronous SQLAlchemy. FastMCP calls a sync tool inline,
+    so on the remote instance -- which serves concurrent HTTP requests -- one
+    tool call blocks the loop for its whole duration; `vuln_summary` over
+    175k `vulnerabilities` rows is long enough to stall an unrelated page load.
+
+    `functools.wraps` sets `__wrapped__`, which `inspect.signature` follows, so
+    FastMCP's `func_metadata` derives the same schema, name, docstring and
+    return annotation as it would from the original. Only `iscoroutinefunction`
+    sees the wrapper, which is exactly the bit we want changed.
+
+    The module-level names are deliberately NOT rebound: READ_ONLY_TOOLS and
+    tests/test_mcp.py call them directly and expect plain sync callables (see
+    the note above READ_ONLY_TOOLS). Wrapping happens only at registration.
+    """
+
+    @functools.wraps(fn)
+    async def _wrapper(*args, **kwargs):
+        return await to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+
+    return _wrapper
+
+
 def build_remote_mcp() -> "FastMCP":
     """A second FastMCP carrying only READ_ONLY_TOOLS, behind bearer auth.
 
@@ -455,7 +483,9 @@ def build_remote_mcp() -> "FastMCP":
     )
 
     for fn in READ_ONLY_TOOLS:
-        remote.add_tool(fn, annotations=ToolAnnotations(readOnlyHint=True))
+        remote.add_tool(
+            _in_threadpool(fn), annotations=ToolAnnotations(readOnlyHint=True)
+        )
 
     if remote._token_verifier is None or remote.settings.auth is None:
         raise RuntimeError("refusing to serve MCP over HTTP without a token verifier")

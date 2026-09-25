@@ -377,6 +377,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "alembic" },
+    { name = "anyio" },
     { name = "fastapi" },
     { name = "itsdangerous" },
     { name = "jinja2" },
@@ -414,6 +415,7 @@ oidc = [
 requires-dist = [
     { name = "aiofiles", specifier = ">=24.1" },
     { name = "alembic", specifier = ">=1.14" },
+    { name = "anyio", specifier = ">=4.0" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "itsdangerous", specifier = ">=2.2" },
     { name = "jinja2", specifier = ">=3.1" },
