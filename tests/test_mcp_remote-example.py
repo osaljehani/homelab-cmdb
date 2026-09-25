@@ -210,7 +210,8 @@ def test_no_token_is_401_with_origin_level_resource_metadata(remote_app):
         response = _rpc(client, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert response.status_code == 401
     # Built from resource_server_url, not from the inbound request -- so it must
-    # name the public origin even though the outpost reaches us on 172.17.0.1.
+    # name the public origin even when the reverse proxy reaches this app on some
+    # unrelated private address.
     assert (
         'resource_metadata="https://cmdb.example.test/.well-known/oauth-protected-resource/mcp"'
         in response.headers["www-authenticate"]

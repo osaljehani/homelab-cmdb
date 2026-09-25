@@ -443,10 +443,10 @@ def build_remote_mcp() -> "FastMCP":
         json_response=True,
         # MUST be passed explicitly. FastMCP's `host` kwarg defaults to
         # "127.0.0.1", so leaving this None auto-enables rebinding protection
-        # with a LOCALHOST-ONLY allowlist -- and every request arriving with
-        # Host: cmdb.oaljehani.com would be rejected. Passing a bare
-        # TransportSecuritySettings() is the opposite trap: an empty allowlist
-        # rejects everything.
+        # with a LOCALHOST-ONLY allowlist -- and every request arriving with the
+        # deployment's own Host (e.g. cmdb.example.com) would be rejected.
+        # Passing a bare TransportSecuritySettings() is the opposite trap: an
+        # empty allowlist rejects everything.
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=settings.mcp_allowed_hosts_list,

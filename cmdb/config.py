@@ -56,8 +56,9 @@ class Settings(BaseSettings):
     mcp_audience: str | None = None
     # The RFC 9728 resource identifier -- the public URL of the endpoint, with
     # no trailing slash. The SDK builds both the metadata document's path and
-    # the WWW-Authenticate challenge from this, so it must be the public origin
-    # even though the outpost reaches us on 172.17.0.1.
+    # the WWW-Authenticate challenge from this, so it must be the PUBLIC origin
+    # even when the reverse proxy reaches this app on some private address that
+    # looks nothing like it.
     mcp_resource_url: str | None = None
     # Optional fallback for the groups claim. Authentik's userinfo endpoint is
     # global, not per-provider.
