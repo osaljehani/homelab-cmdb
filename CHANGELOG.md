@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-25
+
 ### Added
 
 - **Authentication for the web UI.** `CMDB_AUTH_MODE` selects how, as a
@@ -42,6 +44,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   binary file). `ansible.import_from_path` now treats an unparseable file as a failed host, like the
   docker/k8s/trivy importers already did, so the page renders the error and the rest of the
   directory still imports. Also fixes `cmdb import ansible` on the CLI.
+
+
+## [0.3.3] - 2026-07-21
+
+### Fixed
 
 - UNKNOWN-severity findings (unrated CVEs — e.g. Debian "unimportant" entries or CVEs awaiting NVD
   analysis) were counted in every stored total but invisible in the UI, so the dashboard severity
@@ -171,7 +178,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Demo mode (`cmdb demo`, and the `cmdb-demo` Docker Compose profile): seeds a fictional sample
   fleet into a throwaway database so the UI can be explored with no setup.
 
-[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.3...v0.4.0
+[0.3.3]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.1...v0.3.2
 [0.2.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/osaljehani/homelab-cmdb/releases/tag/v0.1.0
