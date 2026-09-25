@@ -10,6 +10,17 @@ services:
       - ${SSH_PRIVATE_KEY:-/dev/null}:/run/secrets/ssh_key:ro
     environment:
       - CMDB_DB_PATH=/data/cmdb.db
+      # Authentication. The default is `local`: the first visit redirects to a
+      # one-time /setup page that creates the administrator. Other values are
+      # `none` (no gate -- only sane if something in front already authenticates),
+      # `oidc` (an SSO button; needs the CMDB_OIDC_* settings), `local,oidc` for
+      # both on one page, and `proxy` to trust a reverse proxy's headers.
+      # - CMDB_AUTH_MODE=local
+      #
+      # Only needed to pin the session key. Left unset, a random one is generated
+      # on first boot and persisted to .secret_key beside the database, so
+      # sessions survive a restart without a known key ever being shipped.
+      # - CMDB_SECRET_KEY=<openssl rand -hex 32>
       # No CMDB_ANSIBLE_INVENTORY: Collect generates the inventory from the database
       # (every known host) and injects these SSH vars. Set CMDB_ANSIBLE_INVENTORY or
       # upload a file on the Collect page to override per run.
@@ -27,4 +38,9 @@ services:
     profiles: ["demo"]
     ports:
       - "8080:8080"
+    # Walk-up by design: the seeded demo DB has no accounts, so the default
+    # `local` mode would open on the first-run setup page. `cmdb demo` sets this
+    # itself; it is repeated here because the entrypoint below is explicit.
+    environment:
+      - CMDB_AUTH_MODE=none
     entrypoint: ["uv", "run", "cmdb", "demo", "--host", "0.0.0.0"]

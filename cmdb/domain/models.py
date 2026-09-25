@@ -358,3 +358,32 @@ class ImportLog(Base):
     images_scanned = Column(Integer, nullable=True)
     vulnerabilities_upserted = Column(Integer, nullable=True)
     notes = Column(Text)
+
+
+class User(Base):
+    """A web UI login.
+
+    There is no self-registration: users arrive via `cmdb users add`, the
+    first-run /setup page, or -- in oidc mode -- by matching an existing row's
+    `oidc_subject`. Both credential columns are nullable on purpose:
+
+    * `password_hash` is NULL for a federated-only user, and must never verify
+      (see cmdb/web/auth/passwords.verify_password);
+    * `oidc_subject` is NULL until a local user links their federated identity,
+      and is UNIQUE so two rows can never claim the same one.
+
+    `proxy` mode stores nothing here at all -- identity comes from the reverse
+    proxy's headers on every request.
+    """
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String)
+    password_hash = Column(String, nullable=True)
+    oidc_subject = Column(String, unique=True, nullable=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at = Column(DateTime)

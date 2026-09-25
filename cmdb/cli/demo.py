@@ -93,7 +93,12 @@ def demo_cmd(
                           db_path.with_name(db_path.name + "-shm")):
             candidate.unlink(missing_ok=True)
 
-    env = {**os.environ, "CMDB_DB_PATH": str(db_path)}
+    # CMDB_AUTH_MODE is forced off, not merely defaulted. The demo is meant to be
+    # walk-up, and a freshly seeded demo DB has no accounts -- so the default
+    # `local` mode would land a visitor on the first-run /setup page instead of
+    # the fleet they came to look at. Both the seeding subprocess and the served
+    # app inherit this env, so one assignment covers both.
+    env = {**os.environ, "CMDB_DB_PATH": str(db_path), "CMDB_AUTH_MODE": "none"}
 
     result = subprocess.run(
         [sys.executable, "-m", "cmdb.cli.main", "demo-seed"],

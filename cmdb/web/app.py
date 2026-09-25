@@ -2,10 +2,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
+from cmdb.config import settings as cfg
+from cmdb.web.auth.middleware import AuthMiddleware
+from cmdb.web.auth.session import session_cookie_kwargs
 from cmdb.web.deps import STATIC_DIR
 from cmdb.web.routes import (
     api,
+    auth,
     dashboard,
     hosts,
     containers,
@@ -51,6 +56,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="HomeLabCMDB", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(hosts.router, prefix="/hosts")
     app.include_router(containers.router, prefix="/containers")
@@ -84,6 +90,25 @@ def create_app() -> FastAPI:
     from cmdb.mcp.server import attach_remote_mcp
 
     _mcp_session_manager = attach_remote_mcp(app)
+
+    # The gate goes on AFTER the MCP routes exist, because its exempt set is
+    # derived from them rather than restated -- see cmdb/web/auth/middleware.py.
+    # Empty when the remote endpoint is disabled, so nothing non-existent is
+    # exempted.
+    mcp_paths = frozenset(
+        route.path
+        for route in app.router.routes
+        if str(getattr(route, "name", "") or "").startswith("mcp_")
+    )
+    app.add_middleware(AuthMiddleware, mcp_paths=mcp_paths)
+
+    # Added LAST and therefore OUTERMOST: add_middleware inserts at index 0 and
+    # the stack is built from reversed(user_middleware). The gate reads
+    # request.session, so the session must already be decoded by the time it
+    # runs. Only mounted for the modes that actually sign a cookie -- `proxy`
+    # and `none` get no cookie machinery at all.
+    if cfg.session_enabled:
+        app.add_middleware(SessionMiddleware, **session_cookie_kwargs())
     return app
 
 

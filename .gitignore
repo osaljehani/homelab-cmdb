@@ -24,3 +24,7 @@ inventory/
 data/*.bak*
 # Local, site-specific deployment override (bind address / ports). Never publish.
 docker-compose.override.yml
+# Auto-generated session signing key (see Settings.resolved_secret_key). Never commit.
+# No leading path: it is written beside the DB, and CMDB_DB_PATH defaults to the
+# repo root, so it does not always land under data/.
+.secret_key

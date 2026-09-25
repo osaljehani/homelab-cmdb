@@ -15,7 +15,18 @@ try:
 except PackageNotFoundError:
     ASSET_VERSION = "dev"
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+def _auth_context(request) -> dict:
+    """Expose the authenticated principal to every template.
+
+    Set on the scope by cmdb.web.auth.middleware, so it is absent in `none` mode
+    and on the public login page -- templates must treat it as optional.
+    """
+    return {"principal": getattr(request.state, "principal", None)}
+
+
+templates = Jinja2Templates(
+    directory=str(TEMPLATES_DIR), context_processors=[_auth_context]
+)
 templates.env.globals["host_posture"] = host_posture
 templates.env.globals["asset_version"] = ASSET_VERSION
 

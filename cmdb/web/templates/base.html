@@ -43,6 +43,12 @@
                hx-get="/search" hx-trigger="input changed delay:250ms, focus" hx-target="#global-search-results">
         <div id="global-search-results" class="search-dropdown"></div>
       </form>
+      {% if principal %}
+        <form method="post" action="/logout" class="nav-user">
+          <span class="nav-user-name" title="{{ principal.email or principal.username }}">{{ principal.username }}</span>
+          <button type="submit" class="nav-logout">Sign out</button>
+        </form>
+      {% endif %}
       <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">Light</button>
     </div>
   </nav>

@@ -375,6 +375,106 @@ only** (fictional hostnames, RFC 5737 IPs like `192.0.2.x`, `example.lan` domain
 
 ---
 
+## Authentication
+
+The web UI gates itself. `CMDB_AUTH_MODE` selects how, and it is a comma-separated
+*set* rather than a single value, so one login page can offer more than one door.
+
+| Mode | What it does |
+|---|---|
+| `local` **(default)** | Username and password against a `users` table in the database. |
+| `oidc` | A "Sign in with …" button. Authorization code + PKCE against any OIDC provider (Authentik, Keycloak, Entra, Google, …). |
+| `local,oidc` | Both, on one page. |
+| `proxy` | No login page: identity is read from headers set by a reverse proxy that has already authenticated the request. |
+| `none` | No gate at all. |
+
+### First run
+
+Nothing to configure. Start the app and the first request redirects to a one-time
+`/setup` page that creates the administrator; the page returns 404 forever after.
+The session signing key is generated on first boot and persisted to `.secret_key`
+beside the database, so no known key is ever shipped and sessions survive a
+restart. Set `CMDB_SECRET_KEY` yourself (`openssl rand -hex 32`) to pin it.
+
+There is **no self-registration**. Further accounts come from the CLI:
+
+```bash
+uv run cmdb users add alice --email alice@example.com   # prompts for the password
+uv run cmdb users list
+uv run cmdb users promote alice                          # grant admin
+uv run cmdb users passwd alice
+uv run cmdb users disable alice                          # revoke access, keep the row
+uv run cmdb users rm alice
+```
+
+The last active admin cannot be deleted, demoted or disabled — recovering from
+that would mean hand-editing SQLite. `disable` takes effect immediately, including
+for a session that is already open.
+
+### Single sign-on (`oidc`)
+
+Register a confidential client with your provider, with
+`https://cmdb.example.com/auth/oidc/callback` as the redirect URI, then:
+
+```bash
+CMDB_AUTH_MODE=local,oidc
+CMDB_OIDC_ISSUER_URL=https://auth.example.com/application/o/cmdb/
+CMDB_OIDC_CLIENT_ID=...
+CMDB_OIDC_CLIENT_SECRET=...
+CMDB_OIDC_REDIRECT_URL=https://cmdb.example.com/auth/oidc/callback
+CMDB_OIDC_DISPLAY_NAME="Example SSO"
+```
+
+The issuer must be the value the provider puts in `iss`, trailing slash included —
+it is compared verbatim, and discovery is fetched from
+`{issuer}.well-known/openid-configuration`. Keeping `local` alongside `oidc` gives
+you a password to get in with when the provider is unavailable.
+
+**A federated login will not create an account.** It binds to a row an
+administrator already created, matching on username the first time, and refuses an
+identity with no row waiting for it. Set `CMDB_OIDC_AUTO_CREATE_USERS=true` to
+provision on first login instead — do that only if everyone who can authenticate
+with that provider should be able to use this instance.
+
+Restrict access further with `CMDB_AUTH_REQUIRED_GROUPS` (comma-separated), which
+is checked against the groups the provider asserts. It does not apply to local
+accounts, which carry no groups — that is what makes `local,oidc` usable as
+"group-gated SSO plus a break-glass password".
+
+### Behind a reverse proxy (`proxy`)
+
+If something in front already authenticates — Authentik or oauth2-proxy forward
+auth, Cloudflare Access, Traefik — `proxy` mode reads the identity it passes
+through instead of showing a login page:
+
+```bash
+CMDB_AUTH_MODE=proxy
+CMDB_AUTH_REQUIRED_GROUPS=homelab-admins
+# defaults suit Authentik; override for another proxy
+CMDB_AUTH_PROXY_USER_HEADER=X-authentik-username
+CMDB_AUTH_PROXY_GROUPS_HEADER=X-authentik-groups
+CMDB_AUTH_PROXY_GROUPS_SEPARATOR="|"
+```
+
+> **The trust is in the network path, not in the headers.** They carry no
+> signature, so *anything that can reach the port can assert any username*. Only
+> use this mode when the app's port is reachable only by the proxy — bound to a
+> private interface or inside a container network. A publicly bound port in
+> `proxy` mode is unauthenticated administrative access.
+
+These headers are ignored entirely in every other mode, so they cannot be used to
+bypass a password login.
+
+### What is not gated
+
+`/static/` and the login routes, so the page can render — and, when the remote MCP
+endpoint is enabled, `/mcp` and its metadata document, which authenticate their own
+bearer tokens (see [MCP server](#mcp-server)). Everything else needs a session,
+including `/healthz` and `/api/v1`. API clients get `401` with a JSON body instead
+of a redirect to HTML.
+
+---
+
 ## Environment variables
 
 | Variable | Default | Purpose |
@@ -382,7 +482,22 @@ only** (fictional hostnames, RFC 5737 IPs like `192.0.2.x`, `example.lan` domain
 | `CMDB_DB_PATH` | `./cmdb.db` | Path to the SQLite database file |
 | `CMDB_HOST` | `0.0.0.0` | Bind address for the web server |
 | `CMDB_PORT` | `8080` | Port for the web server |
-| `CMDB_SECRET_KEY` | `change-me-in-production` | Session secret set to a random value in production |
+| `CMDB_SECRET_KEY` | _(generated)_ | Session signing key. Left unset, a random one is generated on first boot and persisted to `.secret_key` beside the database |
+| `CMDB_AUTH_MODE` | `local` | How the UI authenticates: `local`, `oidc`, `local,oidc`, `proxy` or `none` — see [Authentication](#authentication) |
+| `CMDB_AUTH_REQUIRED_GROUPS` | _(unset)_ | Comma-separated groups a federated or proxy identity must hold. Empty means any authenticated user |
+| `CMDB_SESSION_MAX_AGE` | `43200` | Session lifetime in seconds (12 hours) |
+| `CMDB_SESSION_COOKIE_SECURE` | `true` | Send the session cookie only over HTTPS. Set `false` only for a plain-HTTP localhost run |
+| `CMDB_OIDC_ISSUER_URL` | _(unset)_ | OIDC issuer, trailing slash included; compared verbatim against `iss` |
+| `CMDB_OIDC_CLIENT_ID` / `_SECRET` | _(unset)_ | Credentials for the confidential client |
+| `CMDB_OIDC_REDIRECT_URL` | _(unset)_ | Public URL of `/auth/oidc/callback` |
+| `CMDB_OIDC_SCOPES` | `openid profile email` | Scopes requested at the authorization endpoint |
+| `CMDB_OIDC_GROUPS_CLAIM` | `groups` | Claim carrying group membership |
+| `CMDB_OIDC_DISPLAY_NAME` | `SSO` | Label on the sign-in button |
+| `CMDB_OIDC_AUTO_CREATE_USERS` | `false` | Provision an account on first federated login instead of requiring one to exist |
+| `CMDB_AUTH_PROXY_USER_HEADER` | `X-authentik-username` | Header carrying the username in `proxy` mode |
+| `CMDB_AUTH_PROXY_EMAIL_HEADER` | `X-authentik-email` | Header carrying the email in `proxy` mode |
+| `CMDB_AUTH_PROXY_GROUPS_HEADER` | `X-authentik-groups` | Header carrying groups in `proxy` mode |
+| `CMDB_AUTH_PROXY_GROUPS_SEPARATOR` | `\|` | Separator within the groups header |
 | `CMDB_STALE_DAYS` | `7` | Days without fresh facts before a host counts as stale on the dashboard |
 | `CMDB_STORAGE_WARN_PCT` | `85` | Used-space percentage at which a mount appears in the dashboard storage warnings |
 | `CMDB_ANSIBLE_INVENTORY` | _(unset)_ | Fixed Ansible inventory path; overrides DB generation when set |

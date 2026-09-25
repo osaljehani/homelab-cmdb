@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First run · HomeLabCMDB</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('cmdb-theme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version }}">
+</head>
+<body class="auth-body">
+  <main class="auth-shell">
+    <div class="auth-card">
+      <a href="/" class="brand auth-brand">HomeLab<span class="brand-mark">CMDB</span></a>
+      <p class="auth-intro">
+        This instance has no accounts yet. Create the first administrator — this
+        page closes itself once it has.
+      </p>
+
+      {% if error %}
+        <div class="flash-error" role="alert">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/setup" class="auth-form">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="{{ username or '' }}"
+               autocomplete="username" autofocus required>
+        <label for="email">Email <span class="auth-optional">(optional)</span></label>
+        <input type="email" id="email" name="email" value="{{ email or '' }}"
+               autocomplete="email">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password"
+               autocomplete="new-password" minlength="{{ min_password_length }}" required>
+        <label for="confirm">Confirm password</label>
+        <input type="password" id="confirm" name="confirm"
+               autocomplete="new-password" minlength="{{ min_password_length }}" required>
+        <button type="submit" class="auth-submit">Create administrator</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>
