@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "homelab-cmdb"
-version = "0.4.0"
+version = "0.4.1"
 description = "Homelab CMDB Ansible-fed, SQLite-backed inventory"
 requires-python = ">=3.12"
 license = "MIT"
@@ -22,7 +22,7 @@ dependencies = [
     # First-party code imports it directly -- anyio.Lock() in cmdb/mcp/auth.py and
     # to_thread.run_sync() in cmdb/mcp/server.py -- so it is a real dependency, not
     # just the transitive one starlette/mcp happen to pull in.
-    "anyio>=4.0",
+    "anyio>=4.14.2",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "sqlalchemy>=2.0",
@@ -76,7 +76,7 @@ mcp = [
     # imports them directly -- and depending on a transitive pin for signature
     # verification is exactly the kind of fragility that goes unnoticed until an
     # mcp release drops it and the next `uv lock` silently breaks the verifier.
-    "pyjwt[crypto]>=2.10",
+    "pyjwt[crypto]>=2.15",
     "httpx>=0.27",
 ]
 # Optional: enables CMDB_AUTH_MODE=oidc (authorization code + PKCE against any
@@ -86,7 +86,7 @@ mcp = [
 # for these at construction and names this group if they are missing.
 oidc = [
     "httpx>=0.27",
-    "pyjwt[crypto]>=2.10",
+    "pyjwt[crypto]>=2.15",
 ]
 
 [tool.pytest.ini_options]
