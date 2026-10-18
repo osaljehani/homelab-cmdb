@@ -359,3 +359,78 @@ def test_dashboard_tracks_running_and_notes_registry_only_exclusion(db):
         assert "registry-only image" in r.text
     finally:
         app.dependency_overrides.clear()
+
+
+def _multi_sev_envelope():
+    env = _envelope()
+    env["images"][0]["Results"][0]["Vulnerabilities"] = [
+        {"VulnerabilityID": "CVE-LOW-1", "Severity": "LOW", "PkgName": "zlib"},
+        {"VulnerabilityID": "CVE-CRIT-2", "Severity": "CRITICAL", "PkgName": "libc"},
+        {"VulnerabilityID": "CVE-MED-1", "Severity": "MEDIUM", "PkgName": "bash"},
+        {"VulnerabilityID": "CVE-CRIT-1", "Severity": "CRITICAL", "PkgName": "libc"},
+        {"VulnerabilityID": "CVE-HIGH-1", "Severity": "HIGH", "PkgName": "openssl"},
+    ]
+    return env
+
+
+def test_image_detail_findings_before_collapsed_history(db):
+    client = _client(db)
+    try:
+        _upload(client, _envelope())
+        r = client.get("/images/nginx:latest")
+        assert r.status_code == 200
+        findings = r.text.index("Latest findings")
+        details = r.text.index("<details")
+        history = r.text.index("Scan history (1 scans)")
+        assert findings < details < history
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_image_detail_findings_sorted_by_severity_then_id(db):
+    client = _client(db)
+    try:
+        _upload(client, _multi_sev_envelope())
+        r = client.get("/images/nginx:latest")
+        order = ["CVE-CRIT-1", "CVE-CRIT-2", "CVE-HIGH-1", "CVE-MED-1", "CVE-LOW-1"]
+        positions = [r.text.index(cve) for cve in order]
+        assert positions == sorted(positions)
+        assert "sev-critical" in r.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_dashboard_cve_metrics_card(db):
+    from cmdb.domain.models import Container, Host
+
+    client = _client(db)
+    try:
+        _upload(client, _multi_sev_envelope())
+        host = Host(machine_id="m1", hostname="node-a.example.lan")
+        db.add(host)
+        db.flush()
+        db.add(Container(host_id=host.id, name="nginx", image="nginx:latest", state="running"))
+        db.commit()
+
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "CVE metrics" in r.text
+        card = r.text.split("CVE metrics", 1)[1]
+        assert "5 unique" in card
+        # Worst package on the host: libc with two criticals.
+        row = card.split("node-a.example.lan", 1)[1].split("</tr>", 1)[0]
+        assert "libc" in row
+        assert "2 crit · 0 high" in row
+        assert 'href="/images/nginx:latest"' in row
+        assert 'href="/hosts/node-a.example.lan"' in card
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_dashboard_cve_metrics_empty_db_renders(db):
+    client = _client(db)
+    try:
+        r = client.get("/")
+        assert r.status_code == 200
+    finally:
+        app.dependency_overrides.clear()

@@ -717,11 +717,34 @@ pre {
 }
 
 .hbar-fill {
-  background: color-mix(in srgb, var(--accent) 70%, transparent);
   border-radius: 3px;
   height: 100%;
   min-width: 2px;
 }
+
+/* Default fill at zero specificity so an optional sev-* class wins. */
+:where(.hbar-fill) { background: color-mix(in srgb, var(--accent) 70%, transparent); }
+
+.trend-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+
+.trend-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .4rem;
+  padding: .35rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: .8rem;
+  color: var(--text-muted);
+}
+
+.trend-chip b { color: var(--text-main); font-weight: 500; }
+.trend-chip .trend-abs { font-size: .74rem; color: var(--text-subtle); }
+.trend-chip.trend-down { border-color: color-mix(in srgb, var(--status-ok) 45%, transparent); }
+.trend-chip.trend-down b { color: var(--status-ok); }
+.trend-chip.trend-up { border-color: color-mix(in srgb, var(--status-critical) 45%, transparent); }
+.trend-chip.trend-up b { color: var(--status-critical); }
 
 .hbar-count { font-family: var(--font-mono); color: var(--text-main); text-align: right; font-size: .78rem; }
 

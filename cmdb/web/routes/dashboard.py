@@ -12,6 +12,11 @@ from cmdb.domain.services.dashboard import (
 from cmdb.domain.services.security import posture_summary
 from cmdb.domain.services.images import vuln_summary
 from cmdb.domain.services.vuln_snapshots import snapshot_trend
+from cmdb.domain.services.vuln_metrics import (
+    top_risk_packages,
+    trend_deltas,
+    unique_cves_by_severity,
+)
 from cmdb.domain.services.network import network_map
 from cmdb.domain.services.storage import fleet_storage
 from cmdb.web.deps import templates, get_db_dep
@@ -39,6 +44,11 @@ def dashboard(request: Request, db: Session = Depends(get_db_dep)):
             "security": posture_summary(hosts),
             "vuln_summary": vuln_summary(db),
             "vuln_trend": snapshot_trend(db),
+            "vuln_metrics": {
+                "deltas": trend_deltas(db),
+                "unique": unique_cves_by_severity(db),
+                "top_packages": top_risk_packages(db),
+            },
             "freshness": fleet_freshness(db, stale_days=settings.stale_days),
             "changes": recent_changes(db),
             "os_breakdown": os_breakdown(db),

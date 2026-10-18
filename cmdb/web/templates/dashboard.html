@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "charts/_macros.html" import sparkline, severity_bar, freshness_meter, hbar_row %}
+{% from "charts/_macros.html" import sparkline, severity_bar, freshness_meter, hbar_row, trend_chip %}
 {% from "_empty_state.html" import empty_state %}
 {% block title %}Dashboard HomeLabCMDB{% endblock %}
 {% block content %}
@@ -58,6 +58,46 @@
         {{ sparkline(vuln_trend) }}
         <p class="text-muted" style="font-size:.75rem;margin:.35rem 0 0;">30-day trend · running images</p>
       </div>
+    </div>
+
+    {% set vm = vuln_metrics %}
+    <div class="card">
+      <h2>CVE metrics</h2>
+      <p class="text-muted" style="font-size:.85rem;margin-top:0;">
+        Same scope · trend counts instances, like the sparkline
+      </p>
+      <div class="trend-row">
+        {% for d in vm.deltas %}{{ trend_chip(d) }}{% endfor %}
+      </div>
+
+      <p style="font-size:.85rem;margin:1rem 0 .25rem;">
+        <b>{{ vm.unique.total }} unique</b> CVE{{ 's' if vm.unique.total != 1 }}
+        <span class="text-muted">· each counted once, at its highest severity</span>
+      </p>
+      {% if vm.unique.total %}
+      {% set umax = [vm.unique.critical, vm.unique.high, vm.unique.medium, vm.unique.low, vm.unique.unknown] | max %}
+      {% for sev in ("critical", "high", "medium", "low", "unknown") %}
+      {{ hbar_row(sev, vm.unique[sev], umax or 1, "sev-" ~ sev) }}
+      {% endfor %}
+      {% endif %}
+
+      {% if vm.top_packages %}
+      <table style="margin-top:1rem;">
+        <thead><tr><th>Host / cluster</th><th>Worst package</th><th>Image(s)</th></tr></thead>
+        <tbody>
+          {% for r in vm.top_packages %}
+          <tr>
+            <td>{% if r.kind == "docker" %}<a href="/hosts/{{ r.host }}"><strong>{{ r.host }}</strong></a>
+                {% else %}<strong>{{ r.host }}</strong> <span class="badge">k8s</span>{% endif %}</td>
+            <td><code>{{ r.package }}</code>
+                <span class="text-muted" style="font-size:.8rem;white-space:nowrap;">{{ r.crit }} crit · {{ r.high }} high</span></td>
+            <td>{% for ref in r.images[:4] %}<a href="/images/{{ ref }}">{{ ref }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}
+                {% if r.images | length > 4 %}<br><span class="text-muted" style="font-size:.8rem;" title="{{ r.images[4:] | join(', ') }}">+{{ r.images | length - 4 }} more</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
     </div>
 
     {% if security and security.total %}

@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from cmdb.domain.services import images as images_svc
+from cmdb.domain.services.vuln_metrics import severity_rank
 from cmdb.web.deps import templates, get_db_dep
 
 router = APIRouter()
@@ -47,13 +48,19 @@ def image_detail(ref: str, request: Request, db: Session = Depends(get_db_dep)):
         raise HTTPException(status_code=404, detail=f"Image '{ref}' not found")
     status = images_svc.image_status(db, image)
     vuln_count = sum(len(scan.vulnerabilities) for scan in image.scans)
+    latest = status["scan"]
+    findings = sorted(
+        latest.vulnerabilities if latest else [],
+        key=lambda v: (severity_rank(v.severity), v.vuln_id),
+    )
     return templates.TemplateResponse(
         request,
         "images/detail.html",
         {
             "active": "images",
             "image": image,
-            "latest": status["scan"],
+            "latest": latest,
+            "findings": findings,
             "scans": image.scans,  # already ordered scanned_at desc
             "stale": status["stale"],
             "deployments": status["deployments"],
