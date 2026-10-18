@@ -13,6 +13,26 @@
 </p>
 <p style="font-size:.85rem;">Deployed: {{ deployment_badges(deployments) }}</p>
 
+{% if latest %}
+<div class="card">
+  <h2>Latest findings ({{ latest.scanned_at.strftime('%Y-%m-%d') }} · {{ findings|length }})</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>CVE</th><th>Package</th><th>Installed</th><th>Fixed</th><th>Title</th></tr></thead>
+    <tbody>
+      {% for v in findings %}
+      {% set sev = (v.severity or 'UNKNOWN') | lower %}
+      {% set sev = sev if sev in ('critical', 'high', 'medium', 'low') else 'unknown' %}
+      <tr><td><span class="legend-item"><i class="legend-dot sev-{{ sev }}"></i>
+            <span{% if sev == 'critical' %} class="badge badge-red"{% endif %}>{{ sev | upper }}</span></span></td>
+          <td>{{ v.vuln_id }}</td><td>{{ v.pkg_name or '' }}</td>
+          <td>{{ v.installed_version or '' }}</td>
+          <td>{{ v.fixed_version or '—' }}</td><td>{{ v.title or '' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <div class="card">
   <form action="/images/{{ image.ref }}/noisy" method="post">
     <input type="hidden" name="on" value="{{ 'false' if image.expected_noisy else 'true' }}">
@@ -21,8 +41,11 @@
   </form>
 </div>
 
-<div class="card">
-  <h2>Scan history</h2>
+<details style="margin-bottom:1rem;">
+  <summary style="cursor:pointer;font-weight:600;padding:.75rem 1rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);color:var(--text-main);">
+    Scan history ({{ scans|length }} scans)
+  </summary>
+  <div class="card" style="margin-top:.5rem;">
   <table>
     <thead><tr><th>Scanned</th><th>Source</th><th>Host</th><th>trivy</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Unk</th><th>Total</th></tr></thead>
     <tbody>
@@ -35,23 +58,8 @@
       {% endfor %}
     </tbody>
   </table>
-</div>
-
-{% if latest %}
-<div class="card">
-  <h2>Latest findings ({{ latest.scanned_at.strftime('%Y-%m-%d') }})</h2>
-  <table>
-    <thead><tr><th>Severity</th><th>CVE</th><th>Package</th><th>Installed</th><th>Fixed</th><th>Title</th></tr></thead>
-    <tbody>
-      {% for v in latest.vulnerabilities %}
-      <tr><td>{{ v.severity }}</td><td>{{ v.vuln_id }}</td><td>{{ v.pkg_name or '' }}</td>
-          <td>{{ v.installed_version or '' }}</td>
-          <td>{{ v.fixed_version or '—' }}</td><td>{{ v.title or '' }}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+  </div>
+</details>
 
 <div class="card">
   <h2>Remove image</h2>

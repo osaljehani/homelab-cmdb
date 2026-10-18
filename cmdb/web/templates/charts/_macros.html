@@ -75,10 +75,24 @@
    ], "Hosts by data freshness") }}
 {% endmacro %}
 
-{% macro hbar_row(label, count, maxcount) %}
+{% macro trend_chip(d) %}
+{# d: one trend_deltas() window. Down is good, up is bad, flat is neutral. #}
+{% if d.pct is none %}
+<span class="trend-chip" title="Not enough snapshot history in this window">{{ d.days }}d <b>n/a</b></span>
+{% else %}
+{% set cls = 'trend-down' if d.delta < 0 else ('trend-up' if d.delta > 0 else '') %}
+<span class="trend-chip {{ cls }}" title="{{ d.start_total }} on {{ d.start_date }} → {{ d.end_total }} now">
+  {{ d.days }}d <b>{{ '▼' if d.delta < 0 else ('▲' if d.delta > 0 else '■') }}
+  {{ '+' if d.pct > 0 }}{{ d.pct | replace('-', '−') }}%</b>
+  <span class="trend-abs">({{ '+' if d.delta > 0 }}{{ d.delta | string | replace('-', '−') }})</span>
+</span>
+{% endif %}
+{% endmacro %}
+
+{% macro hbar_row(label, count, maxcount, cls=none) %}
 <div class="hbar-row">
   <span class="hbar-label">{{ label }}</span>
-  <div class="hbar-track"><div class="hbar-fill" style="width:{{ (count / maxcount * 100) | round }}%"></div></div>
+  <div class="hbar-track"><div class="hbar-fill{% if cls %} {{ cls }}{% endif %}" style="width:{{ (count / maxcount * 100) | round }}%"></div></div>
   <span class="hbar-count">{{ count }}</span>
 </div>
 {% endmacro %}
