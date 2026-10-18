@@ -60,6 +60,57 @@ def _is_running(state: str | None) -> bool:
     return state is None or state.lower() in ("running", "up")
 
 
+def _digest_of(ref: str | None) -> str | None:
+    """The ``sha256:...`` part of a ref that carries one, else None."""
+    if not ref:
+        return None
+    _, sep, digest = ref.partition("@")
+    return digest if sep and digest.startswith("sha256:") else None
+
+
+def _digest_index(session: Session) -> tuple[set[str], dict[str, str]]:
+    """``(known canonical refs, digest -> canonical ref)`` over all Image rows.
+
+    ``Image.digest`` is whatever the scanner reported — a ``repo@sha256:...``
+    RepoDigest or a bare ``sha256:...`` ImageID — so only the digest part is
+    indexed. When several rows share a digest (the registry feed scanned
+    ``repo:1.2.3``, the runtime feed scanned ``repo@sha256:...``), the row with
+    a real tag wins over a fabricated ``:latest``.
+    """
+    known: set[str] = set()
+    by_digest: dict[str, str] = {}
+    for ref, digest in session.query(Image.ref, Image.digest).all():
+        known.add(ref)
+        d = digest if (digest or "").startswith("sha256:") else _digest_of(digest)
+        if not d:
+            continue
+        current = by_digest.get(d)
+        if current is None or (
+            current.endswith(":latest") and not ref.endswith(":latest")
+        ):
+            by_digest[d] = ref
+    return known, by_digest
+
+
+def _placement_key(
+    raw_ref: str, canonical: str | None, known: set[str], by_digest: dict[str, str]
+) -> str | None:
+    """Which ``Image.ref`` a runtime ref joins to.
+
+    Canonical ref first: that is the normal, exact join. Only when no Image row
+    has that canonical ref — the scanner saw the same content under a different
+    spelling, e.g. a ``repo:1.2.3@sha256:X`` container vs a ``repo@sha256:X``
+    scan stored as ``repo:latest`` — fall back to the digest both sides carry.
+    Content identity beats spelling; never attach to both (double counting).
+    """
+    if canonical is not None and canonical in known:
+        return canonical
+    digest = _digest_of(raw_ref)
+    if digest and digest in by_digest:
+        return by_digest[digest]
+    return canonical
+
+
 def container_placements(session: Session) -> dict[str, list[dict]]:
     """Canonical image ref -> running-container placements, in one pass.
 
@@ -67,12 +118,16 @@ def container_placements(session: Session) -> dict[str, list[dict]]:
     canonicalize each container's raw ``docker ps`` ``.Image`` string, making
     the join tolerant of registry-host/``library/``/tag differences (e.g. a
     ``homelabcmdb-cmdb`` container vs a ``homelabcmdb-cmdb:latest`` image).
+    A digest-pinned container whose canonical ref matches no Image row joins
+    by digest instead — see :func:`_placement_key`.
     """
+    known, by_digest = _digest_index(session)
     placements: dict[str, list[dict]] = {}
     for c in session.query(Container).all():
         if not c.image or not _is_running(c.state):
             continue
-        placements.setdefault(canonical_ref(c.image), []).append(
+        key = _placement_key(c.image, canonical_ref(c.image), known, by_digest)
+        placements.setdefault(key, []).append(
             {"host": c.host.hostname if c.host else None, "name": c.name}
         )
     return placements
@@ -82,13 +137,18 @@ def k8s_placements(session: Session) -> dict[str, list[dict]]:
     """Canonical image ref -> k8s workload placements, in one pass.
 
     ``image_canonical`` is computed at import (NULL for digest-only refs), so
-    the join to ``Image.ref`` mirrors :func:`container_placements`.
+    the join to ``Image.ref`` mirrors :func:`container_placements`. A
+    digest-only pod ref (``repo@sha256:...``) still joins when some Image row
+    carries that digest — the registry feed scans tags, so the same content is
+    usually known under ``repo:tag``.
     """
+    known, by_digest = _digest_index(session)
     placements: dict[str, list[dict]] = {}
     for w in session.query(K8sWorkload).all():
-        if not w.image_canonical:
+        key = _placement_key(w.image, w.image_canonical, known, by_digest)
+        if not key:
             continue
-        placements.setdefault(w.image_canonical, []).append(
+        placements.setdefault(key, []).append(
             {
                 "cluster": w.cluster.name if w.cluster else None,
                 "namespace": w.namespace,
