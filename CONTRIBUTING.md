@@ -21,31 +21,17 @@ uv run ruff check .
 
 This is the one thing that's different from a typical repo, so read carefully.
 
-The project runs against real homelab infrastructure, and some tests were written against real
-hostnames, IPs, and usernames. Those can't be published. The split:
-
-- **Tracked tests** — `tests/test_*.py` files that already use fictional data (`testhost`,
-  `192.168.1.x`, `example.lan`) are committed normally and run in CI.
-- **Maintainer-local tests** — some `tests/test_*.py` files contain private homelab data. They're
-  gitignored (see the `tests/test_*.py` / `!tests/test_*-example.py` pattern) and never leave the
-  maintainer's machine.
-- **Scrubbed example copies** — for every gitignored real test, a `tests/*-example.py` copy is
-  committed with the data replaced by fictional equivalents. CI materializes these into real
-  `test_*.py` files on a fresh clone (copying `foo-example.py` → `foo.py` if `foo.py` doesn't
-  already exist) so the suite is fully runnable without any private data.
+The project is built against real infrastructure, but the repo is public, so nothing in it may
+carry real data. Every test under `tests/` is tracked, runs in CI, and uses synthetic fixtures only.
 
 **If you add a new test:**
 
-- Use only fictional data — `testhost`, `192.168.1.x`, `example.lan`, made-up MAC addresses, etc.
-  Never copy real values from your own environment into a PR.
-- Commit it under its real `test_*.py` name (not as a `-example.py` file — that convention is only
-  for scrubbed copies of maintainer-local tests). If `.gitignore` refuses to track it because it
-  matches the `tests/test_*.py` pattern, force-add it:
-
-  ```bash
-  git add -f tests/test_your_new_thing.py
-  ```
-
+- Use only fictional data: hostnames like `testhost` or `*.example.lan`, RFC 5737 IPs
+  (`192.0.2.x`, `198.51.100.x`, `203.0.113.x`), locally administered MACs (`02:00:5e:…`), and
+  made-up usernames. Reuse the fixtures in `tests/conftest.py`; `cmdb/demo/data/` shows the
+  pattern. Never copy real values from your own environment into a PR.
+- If a test genuinely needs real data from your environment, put it under `tests/local/`. That
+  directory is gitignored, so the test runs on your machine and never leaves it.
 - Double-check `git diff --cached` before committing — no real hostnames, IPs, MACs, or usernames.
 
 ## Branches and commits

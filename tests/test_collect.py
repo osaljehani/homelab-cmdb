@@ -221,9 +221,13 @@ def test_collect_docker_surfaces_failure_reported_on_stdout(host_db: Session, mo
 # --- collect_k8s ---
 
 
-def _k8s_blob(context: str, node_items: list, ns_items: list) -> str:
-    """Build the marker-delimited stdout the remote probe emits for a control-plane."""
-    return "\n".join([
+def _k8s_blob(context: str, node_items: list, ns_items: list,
+              pod_items: list | None = None) -> str:
+    """Build the marker-delimited stdout the remote probe emits for a control-plane.
+
+    ``pod_items=None`` mimics an older probe without the __PODS__ section.
+    """
+    parts = [
         "__CMDB_K8S__",
         "status=ok",
         f"context={context}",
@@ -231,7 +235,18 @@ def _k8s_blob(context: str, node_items: list, ns_items: list) -> str:
         json.dumps({"items": node_items}),
         "__NAMESPACES__",
         json.dumps({"items": ns_items}),
-    ])
+    ]
+    if pod_items is not None:
+        parts += ["__PODS__", json.dumps({"items": pod_items})]
+    return "\n".join(parts)
+
+
+def _pod(ns: str, name: str, image: str, phase: str = "Running") -> dict:
+    return {
+        "metadata": {"name": name, "namespace": ns},
+        "status": {"phase": phase},
+        "spec": {"containers": [{"name": "main", "image": image}]},
+    }
 
 
 def _node(name: str, role: str | None = None) -> dict:
@@ -277,6 +292,56 @@ def test_collect_k8s_skips_non_control_plane_silently(host_db: Session, monkeypa
     assert not log.notes  # a host that simply isn't a control-plane is not an error
     assert host_db.query(K8sCluster).count() == 0
 
+
+def test_collect_k8s_imports_workloads_from_pods_section(host_db: Session, monkeypatch):
+    blob = _k8s_blob(
+        "local",
+        [_node("testhost", "control-plane")],
+        [{"metadata": {"name": "default"}}],
+        [
+            _pod("default", "web-1", "nginx:1.25"),
+            _pod("batch", "job-1", "alpine:3", phase="Succeeded"),
+        ],
+    )
+
+    def writer(tree: Path, cmd):
+        (tree / "testhost").write_text(json.dumps({"rc": 0, "stdout": blob}))
+
+    monkeypatch.setattr(collect_mod.subprocess, "run", _fake_run(writer))
+
+    log = collect_k8s(host_db, INVENTORY)
+
+    assert log.k8s_workloads_upserted == 1  # only the Running pod
+    from cmdb.domain.models import K8sWorkload
+    w = host_db.query(K8sWorkload).one()
+    assert (w.namespace, w.pod_name, w.image_canonical) == ("default", "web-1", "nginx:1.25")
+
+
+def test_collect_k8s_without_pods_section_still_imports(host_db: Session, monkeypatch):
+    # older probe output (no __PODS__ marker): nodes/namespaces import, no wipe
+    from cmdb.domain.models import K8sWorkload
+    from cmdb.domain.services.k8s import add_cluster
+    from cmdb.domain.services.k8s_import import import_workloads
+
+    add_cluster(host_db, "local")
+    import_workloads(host_db, "local", [
+        {"namespace": "default", "pod_name": "web-1",
+         "container_name": "app", "image": "nginx:1.25"},
+    ])
+
+    blob = _k8s_blob("local", [_node("testhost", "control-plane")],
+                     [{"metadata": {"name": "d"}}])
+
+    def writer(tree: Path, cmd):
+        (tree / "testhost").write_text(json.dumps({"rc": 0, "stdout": blob}))
+
+    monkeypatch.setattr(collect_mod.subprocess, "run", _fake_run(writer))
+
+    log = collect_k8s(host_db, INVENTORY)
+
+    assert log.k8s_clusters_upserted == 1
+    # no __PODS__ section -> existing workloads are preserved, never wiped
+    assert host_db.query(K8sWorkload).count() == 1
 
 def test_collect_k8s_generic_context_falls_back_to_hostname(host_db: Session, monkeypatch):
     # k3s reports the generic context 'default'; the cluster is named after the host.

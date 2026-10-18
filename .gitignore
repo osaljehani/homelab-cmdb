@@ -15,9 +15,8 @@ CLAUDE.md
 .remember/
 out/
 tests/fixtures/
-# Real, homelab-data-bearing tests stay local; only scrubbed *-example.py copies are published.
-tests/test_*.py
-!tests/test_*-example.py
+# Tests that need real (non-synthetic) data live here and are never published.
+tests/local/
 docs/superpowers/
 inventory/
 .env

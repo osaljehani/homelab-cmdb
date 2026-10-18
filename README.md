@@ -365,13 +365,10 @@ just test                        # run the full suite via the justfile
 
 ### A note on tests and fixtures
 
-The real, fixture-bearing `test_*.py` files live only on the maintainer's machine — they carry
-real homelab hostnames, IPs, and usernames and are gitignored, never committed. What CI runs (and
-what ships in this repo) is the committed test suite plus scrubbed `*-example.py` copies with
-purely fictional fixture data (`testhost` / `192.168.1.10`-style placeholders). On a fresh clone, each
-`tests/*-example.py` is materialized into its `tests/*.py` counterpart — see
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml). **Contributions must use fictional data
-only** (fictional hostnames, RFC 5737 IPs like `192.0.2.x`, `example.lan` domains).
+Every test in `tests/` is committed and runs in CI exactly as it runs locally. Tests use
+fictional fixture data only (`testhost`, `example.lan` domains, RFC 5737 IPs like `192.0.2.x`), and
+contributions must do the same. A test that needs real data from your own environment goes under
+`tests/local/`, which is gitignored. See [CONTRIBUTING.md](CONTRIBUTING.md#test-data-policy).
 
 ---
 
