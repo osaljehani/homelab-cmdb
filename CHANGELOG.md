@@ -7,6 +7,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-18
+
+### Added
+
+- **CVE metrics on the dashboard.** A second card under Vulnerabilities, same scope as the
+  severity bar (running, non-noisy images, latest scan per image): 30- and 90-day change in the
+  instance total, read from the daily snapshots the sparkline plots; unique CVE counts by
+  severity, where a CVE found in several images counts once under its highest severity; and the
+  worst package per Docker host or Kubernetes cluster, ranked by distinct critical then high
+  CVEs, with the images that carry it.
+
+### Changed
+
+- **Image detail shows the CVEs first.** Latest findings now sit at the top, sorted by severity
+  then CVE ID, with a severity marker per row. The per-scan history moved to a collapsed section
+  at the bottom.
+
 ## [0.4.1] - 2026-10-18
 
 ### Security
@@ -188,7 +205,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Demo mode (`cmdb demo`, and the `cmdb-demo` Docker Compose profile): seeds a fictional sample
   fleet into a throwaway database so the UI can be explored with no setup.
 
-[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.2...v0.3.3
