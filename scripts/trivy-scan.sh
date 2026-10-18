@@ -9,13 +9,10 @@
 # Flow: enumerate running images -> trivy scan each -> wrap the reports in the
 # CMDB envelope contract -> feed to CMDB -> prune old envelopes.
 #
-# Two feed modes (cmdb_feed):
-#   exec (default) — write into CMDB's ./data/scans volume and run
-#                    `cmdb import trivy` inside the local CMDB container.
-#                    Requires this host to run the CMDB container.
-#   http           — POST the envelope to a (remote) CMDB's upload endpoint
-#                    (/import/upload/trivy). Use on hosts that do NOT run CMDB;
-#                    cmdb_data_dir is then just a local spool/retention dir.
+# The envelope is written into CMDB's ./data/scans volume and imported with
+# `cmdb import trivy` inside the local CMDB container, so this host must run it.
+# On other hosts, copy the envelope over and import it there (see
+# docs/image-scanning.md).
 #
 # Envelope contract (the only coupling point with CMDB — see docs/image-scanning.md):
 #   { "host": ..., "scanned_at": ..., "trivy_version": ..., "images": [<trivy report>...] }
@@ -36,8 +33,6 @@ ENV_FILE="${ENV_FILE:-/etc/homelabcmdb-image-scan.env}"
 : "${cmdb_container:=homelabcmdb-cmdb-1}"  # name of the running CMDB container
 : "${cmdb_data_dir:=./data}"            # host path mounted to the container's /data
 : "${cmdb_cmd:=uv run cmdb}"            # how to invoke the CLI inside the container
-: "${cmdb_feed:=exec}"                  # exec | http (see feed modes above)
-: "${cmdb_url:=}"                       # CMDB base URL for cmdb_feed=http, e.g. http://cmdb.example.lan:8080
 : "${trivy_version:=0.72.0}"
 : "${trivy_image:=aquasec/trivy:0.72.0}"
 : "${trivy_cache_vol:=trivy-cache}"
@@ -48,16 +43,6 @@ die() { echo "[$(date -u +%FT%TZ)] ERROR: $*" >&2; exit 1; }
 
 command -v docker >/dev/null || die "docker not installed"
 command -v jq >/dev/null || die "jq not installed"
-
-# Validate the feed mode up front so a misconfiguration fails before scanning ----
-case "$cmdb_feed" in
-  exec) ;;
-  http)
-    command -v curl >/dev/null || die "curl required for cmdb_feed=http"
-    [[ -n "$cmdb_url" ]] || die "cmdb_url is empty (e.g. http://cmdb.example.lan:8080)"
-    ;;
-  *) die "unknown cmdb_feed '${cmdb_feed}' (exec|http)" ;;
-esac
 
 # Temp workspace for the per-image trivy reports (one JSON object per file) ------
 workdir="$(mktemp -d)"
@@ -109,20 +94,11 @@ jq -s \
 log "wrote ${out}"
 
 # Feed it into CMDB -------------------------------------------------------------
-case "$cmdb_feed" in
-  exec)
-    # The path is relative to the container's /data mount.
-    # $cmdb_cmd is deliberately word-split (e.g. `uv run cmdb`).
-    # shellcheck disable=SC2086
-    docker exec "$cmdb_container" $cmdb_cmd import trivy "/data/scans/${ts}.json" \
-      || die "cmdb import failed (container ${cmdb_container})"
-    ;;
-  http)
-    # The upload endpoint is unauthenticated — keep the CMDB port LAN/tailnet-only.
-    curl -fsS -F "files=@${out}" "${cmdb_url%/}/import/upload/trivy" >/dev/null \
-      || die "cmdb http import failed (${cmdb_url})"
-    ;;
-esac
+# The path is relative to the container's /data mount.
+# $cmdb_cmd is deliberately word-split (e.g. `uv run cmdb`).
+# shellcheck disable=SC2086
+docker exec "$cmdb_container" $cmdb_cmd import trivy "/data/scans/${ts}.json" \
+  || die "cmdb import failed (container ${cmdb_container})"
 
 # Prune raw envelopes; the DB retains the full scan history ----------------------
 find "$scan_dir" -maxdepth 1 -type f -name '*.json' -mtime "+${scan_retention_days}" -delete

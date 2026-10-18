@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+
+- **`cmdb_feed=http` in the example scan scripts.** Since 0.4.0 the upload endpoint sits behind
+  the login gate, which answers a script's POST with a redirect that `curl -f` counts as
+  success — so scans fed this way were silently dropped. Both scripts now import only via
+  `docker exec … cmdb import trivy`; for hosts without CMDB, copy the envelope over and import it
+  with the CLI.
+- The `cmdb.mcp.schemas` re-export shim (import from `cmdb.domain.schemas`), the unused
+  `CMDB_AUTH_MAX_LOGIN_FAILURES` / `CMDB_AUTH_LOCKOUT_SECONDS` settings (the lockout was always
+  fixed at 5 failures / 300 s), and the unused `aiofiles` dependency.
+
 ## [0.4.2] - 2026-10-18
 
 ### Added

@@ -278,17 +278,13 @@ def import_ansible(path: str) -> dict:
 # --- Image vulnerabilities --------------------------------------------------
 
 
-_running_on = running_on
-_image_summary = image_summary_out
-
-
 @mcp.tool()
 def list_image_scans() -> list[ImageSummaryOut]:
     """List scanned container images with their latest severity counts,
     per-source staleness, and running/registry-only deployment status."""
     with get_session() as session:
         return [
-            _image_summary(session, row["image"], row)
+            image_summary_out(session, row["image"], row)
             for row in images_svc.image_overview(session)
         ]
 
@@ -309,7 +305,7 @@ def image_vulnerabilities(ref: str) -> ImageDetailOut:
             trivy_version=scan.trivy_version if scan else None,
             stale=row["stale"],
             deployment_status=row["status"],
-            running_on=_running_on(row),
+            running_on=running_on(row),
             vulnerabilities=[v for v in (scan.vulnerabilities if scan else [])],
         )
 
@@ -327,7 +323,7 @@ def set_image_noisy(ref: str, noisy: bool) -> ImageSummaryOut:
     with get_session() as session:
         image = images_svc.set_noisy(session, ref, noisy)
         session.flush()
-        return _image_summary(session, image)
+        return image_summary_out(session, image)
 
 
 @mcp.tool()

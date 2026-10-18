@@ -96,12 +96,6 @@ class Settings(BaseSettings):
     # any group whose name contains one.
     auth_proxy_groups_separator: str = "|"
 
-    # --- local mode: brute-force backoff -----------------------------------
-    # In-memory, per username, no new table. Mirrors the intent of the Authentik
-    # ReputationPolicy on the live path without pretending to replace it.
-    auth_max_login_failures: int = 5
-    auth_lockout_seconds: int = 300
-
     # --- oidc mode ---------------------------------------------------------
     oidc_issuer_url: str | None = None
     oidc_client_id: str | None = None

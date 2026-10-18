@@ -106,7 +106,7 @@ never sawtooths the totals.
 
 ## Feeding CMDB a scan
 
-There are four ways to get an envelope into CMDB; all use the same importer.
+There are three ways to get an envelope into CMDB; all use the same importer.
 
 1. **Web upload** — open `/import` and upload the envelope JSON under the trivy
    source. Best for one-off / manual scans.
@@ -116,15 +116,12 @@ There are four ways to get an envelope into CMDB; all use the same importer.
    uv run cmdb import trivy ./data/scans/20260703T040000Z.json
    uv run cmdb import trivy ./data/scans/          # import a whole directory
    ```
-3. **HTTP upload** — POST the envelope to the same endpoint the web upload uses.
-   This is the cross-host path: any machine on the network can push a scan without
-   running the CMDB container:
-   ```bash
-   curl -fsS -F "files=@scan.json" http://cmdb.example.lan:8080/import/upload/trivy
-   ```
-   The endpoint is **unauthenticated** — keep the CMDB port LAN/tailnet-only.
-4. **Scheduled script** — the automated path (below), which builds the envelope and
-   feeds it via the CLI (`cmdb_feed=exec`) or the HTTP upload (`cmdb_feed=http`).
+3. **Scheduled script** — the automated path (below), which builds the envelope and
+   feeds it via the CLI inside the CMDB container.
+
+To scan a host that doesn't run CMDB, run the scanner there, copy the envelope to the
+CMDB host (e.g. `scp`), and import it with the CLI. The web upload sits behind the
+app's login, so a script can't POST to it.
 
 ## Automating scans (example scripts)
 
@@ -146,17 +143,10 @@ Both read overridable defaults at the top of the file (or from an optional
 `/etc/homelabcmdb-*.env` file) — set `host_label`, `cmdb_container`, `cmdb_data_dir`,
 etc. to match your deployment.
 
-Both scripts support two **feed modes** via `cmdb_feed`:
-
-- `exec` (default) — for the host that runs the CMDB container: the envelope is
-  written into `cmdb_data_dir` and imported with `docker exec … cmdb import trivy`.
-  `cmdb_data_dir` must then be the host path mounted to the container's `/data`,
-  so the script and the container see the same file.
-- `http` — for **any other host** (e.g. a pure-k8s node or the registry machine):
-  the envelope is POSTed to `${cmdb_url}/import/upload/trivy` instead. Set
-  `cmdb_url` (e.g. `http://cmdb.example.lan:8080`); `cmdb_data_dir` is then just a
-  local spool/retention directory. Remember the endpoint is unauthenticated —
-  keep the CMDB port LAN/tailnet-only.
+Both scripts run on the host that runs the CMDB container: the envelope is written
+into `cmdb_data_dir` and imported with `docker exec … cmdb import trivy`.
+`cmdb_data_dir` must be the host path mounted to the container's `/data`, so the
+script and the container see the same file.
 
 ### Run on a schedule
 
@@ -185,3 +175,8 @@ report per image (at least `ArtifactName` and `Results[].Vulnerabilities[]`), wr
 them in `{host, scanned_at, trivy_version, images:[...]}`, and pipe the file through
 `cmdb import trivy` (or the web upload). The example scripts' `jq` steps show exactly
 how the envelope is assembled.
+
+## Design notes
+
+- [Stale badge and per-image delete](design/images-stale-badge-and-delete.md)
+- [Vulnerability trend snapshots](design/vuln-trend-snapshots.md)

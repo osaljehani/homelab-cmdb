@@ -103,7 +103,7 @@ demo uses a throwaway database in your temp directory; **your real `cmdb.db` is 
   via a Model Context Protocol server over stdio. See below.
 - **Read-only JSON API** `GET /api/v1/{hosts,containers,clusters,images,vuln-summary}` for
   scripting and dashboards, using the same response models as the MCP server. Interactive
-  docs at `/docs`. Unauthenticated, like the rest of the app — keep the port LAN-only.
+  docs at `/docs`. Behind the same login as the UI; an unauthenticated call gets a 401.
 - **Export / restore** dump the whole CMDB to JSON/YAML (`cmdb export`, or download from the
   Generate page) and restore it into an empty database (`cmdb restore`). Portability and
   inspection — copying `data/cmdb.db` remains the real backup.
