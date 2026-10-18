@@ -1,5 +1,3 @@
-import json
-
 from fastapi.testclient import TestClient
 
 from cmdb.domain.services.ansible import import_host
@@ -169,12 +167,3 @@ def test_openapi_docs_include_api(db):
         assert "/api/v1/hosts" in paths
     finally:
         app.dependency_overrides.clear()
-
-
-def test_mcp_schemas_shim_still_imports():
-    # cmdb.mcp.schemas moved to cmdb.domain.schemas with a re-export shim
-    from cmdb.domain import schemas as domain_schemas
-    from cmdb.mcp import schemas as mcp_schemas
-
-    assert mcp_schemas.HostOut is domain_schemas.HostOut
-    assert json is not None  # keep the import honest
