@@ -71,7 +71,7 @@ collect = [
 mcp = [
     # >=1.28: the remote endpoint relies on AuthSettings.resource_server_url and
     # the RFC 9728 path-inserted metadata route, neither of which 1.12 has.
-    "mcp>=1.28,<2",
+    "mcp>=1.30,<2",
     # Both are already resolved transitively via mcp, but cmdb/mcp/auth.py
     # imports them directly -- and depending on a transitive pin for signature
     # verification is exactly the kind of fragility that goes unnoticed until an

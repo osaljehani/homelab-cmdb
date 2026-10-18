@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-18
+
+### Security
+
+- Dependency refresh clearing the image's two CRITICAL findings: PyJWT 2.13.0 → 2.15.1
+  (CVE-2026-102268) and anyio 4.13.0 → 4.15.1 (CVE-2026-63374). cryptography (→ 50.0.2) and
+  mcp (→ 1.30.0) are bumped alongside for their HIGH findings. Floors raised to
+  `pyjwt[crypto]>=2.15`, `anyio>=4.14.2` and `mcp>=1.30` so a resolve without the lockfile cannot
+  fall back to the vulnerable versions.
+
 ## [0.4.0] - 2026-09-25
 
 ### Added
@@ -178,7 +188,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Demo mode (`cmdb demo`, and the `cmdb-demo` Docker Compose profile): seeds a fictional sample
   fleet into a throwaway database so the UI can be explored with no setup.
 
-[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/osaljehani/homelab-cmdb/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/osaljehani/homelab-cmdb/compare/v0.3.1...v0.3.2
