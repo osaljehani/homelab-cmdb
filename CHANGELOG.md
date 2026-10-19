@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-19
+
 ### Fixed
 
 - **Digest-pinned containers no longer vanish from the running set.** The runtime scan feed
