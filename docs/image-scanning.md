@@ -15,9 +15,13 @@ join on the container's image ref, and Kubernetes pods join on the pod-spec
 image collected by `cmdb collect k8s` (`kubectl get pods -A`), which shows the
 real cluster/namespace/pod instead of a generic "registry only" badge. Both
 joins use canonical refs, so registry-host/`library/`/tag spelling differences
-don't matter. One known gap: pods that pin an image **by digest only**
-(`repo@sha256:…`, no tag) are recorded but not matched — defaulting them to
-`:latest` could point at a different build.
+don't matter. When the canonical ref matches no scanned image, the join falls
+back to the **digest** both sides carry (`Image.digest` from the scan's
+`RepoDigests`, the `@sha256:…` in the runtime ref): a container created as
+`repo:1.2.3@sha256:X` joins a scan filed as `repo@sha256:X` (stored as
+`repo:latest`), and a pod that pins **by digest only** (`repo@sha256:X`, no tag —
+`image_canonical` NULL, never defaulted to `:latest`) joins a registry scan of
+`repo:1.2.3` with that digest. Canonical first, digest second, never both rows.
 
 ## Mental model: the images view is scan-driven
 
