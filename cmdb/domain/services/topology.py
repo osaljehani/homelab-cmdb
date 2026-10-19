@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from cmdb.domain.models import Container, Host, Image, K8sCluster, K8sWorkload
 from cmdb.domain.refs import canonical_ref
-from cmdb.domain.services.images import latest_scan
+from cmdb.domain.services.images import digest_index, latest_scan, resolve_image_ref
 from cmdb.domain.services.network import subnet_of as _subnet_of
 
 
@@ -96,6 +96,9 @@ def build_topology(session: Session) -> dict:
     clusters = session.query(K8sCluster).order_by(K8sCluster.name).all()
     containers = session.query(Container).order_by(Container.name).all()
     images_by_ref = {img.ref: img for img in session.query(Image).all()}
+    # Same join rule as the images page (canonical ref, then digest), so the
+    # ring never calls a container unscanned that /images shows as running.
+    known_refs, refs_by_digest = digest_index(session)
 
     subnets: set[str] = set()
     any_tailscale = any(h.tailscale_ipv4 for h in hosts)
@@ -235,7 +238,9 @@ def build_topology(session: Session) -> dict:
         sev, vulns = "sev-unscanned", None
         cref = None
         if c.image:
-            cref = canonical_ref(c.image)
+            cref = resolve_image_ref(
+                c.image, canonical_ref(c.image), known_refs, refs_by_digest
+            )
             sev, vulns = _severity_meta(session, images_by_ref.get(cref))
 
         container_id = f"container:{hostname}/{c.name}"
@@ -318,7 +323,7 @@ def build_topology(session: Session) -> dict:
         label = container_name if replicas == 1 else f"{container_name} ×{replicas}"
         wl_id = f"workload:{cluster_name}/{namespace}/{container_name}@{raw_image}"
 
-        cref = g["canonical"]
+        cref = resolve_image_ref(raw_image, g["canonical"], known_refs, refs_by_digest)
         sev, vulns = "sev-unscanned", None
         if cref:
             sev, vulns = _severity_meta(session, images_by_ref.get(cref))

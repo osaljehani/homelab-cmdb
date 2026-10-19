@@ -68,7 +68,7 @@ def _digest_of(ref: str | None) -> str | None:
     return digest if sep and digest.startswith("sha256:") else None
 
 
-def _digest_index(session: Session) -> tuple[set[str], dict[str, str]]:
+def digest_index(session: Session) -> tuple[set[str], dict[str, str]]:
     """``(known canonical refs, digest -> canonical ref)`` over all Image rows.
 
     ``Image.digest`` is whatever the scanner reported — a ``repo@sha256:...``
@@ -92,23 +92,40 @@ def _digest_index(session: Session) -> tuple[set[str], dict[str, str]]:
     return known, by_digest
 
 
-def _placement_key(
-    raw_ref: str, canonical: str | None, known: set[str], by_digest: dict[str, str]
-) -> str | None:
-    """Which ``Image.ref`` a runtime ref joins to.
+def _is_tagless_digest_ref(raw_ref: str | None) -> bool:
+    """``repo@sha256:…`` with no tag before the ``@``."""
+    if not raw_ref or "@" not in raw_ref:
+        return False
+    name = raw_ref.split("@", 1)[0]
+    return ":" not in name.rsplit("/", 1)[-1]
 
-    Canonical ref first: that is the normal, exact join. Only when no Image row
-    has that canonical ref — the scanner saw the same content under a different
-    spelling, e.g. a ``repo:1.2.3@sha256:X`` container vs a ``repo@sha256:X``
-    scan stored as ``repo:latest`` — fall back to the digest both sides carry.
-    Content identity beats spelling; never attach to both (double counting).
+
+def resolve_image_ref(
+    raw_ref: str | None,
+    canonical: str | None,
+    known: set[str],
+    by_digest: dict[str, str],
+) -> str | None:
+    """Which ``Image.ref`` a runtime ref joins to — the one join rule for every view.
+
+    Spelling first, content second, never both rows:
+
+    * A **tagged** ref joins its canonical ref when an Image row has it (the
+      normal exact join), else the row carrying the same digest — e.g. a
+      ``repo:1.2.3@sha256:X`` container vs a scan filed as ``repo@sha256:X``
+      and stored as ``repo:latest``.
+    * A **tagless digest** ref (``repo@sha256:X``) joins by digest first: its
+      canonical ``repo:latest`` is fabricated by :func:`canonical_ref` and may
+      be a different build. Only when no row carries the digest does it fall
+      back to that canonical ref (the pre-2026-10 behaviour).
     """
+    digest = _digest_of(raw_ref)
+    digest_hit = by_digest.get(digest) if digest else None
+    if _is_tagless_digest_ref(raw_ref) and digest_hit:
+        return digest_hit
     if canonical is not None and canonical in known:
         return canonical
-    digest = _digest_of(raw_ref)
-    if digest and digest in by_digest:
-        return by_digest[digest]
-    return canonical
+    return digest_hit or canonical
 
 
 def container_placements(session: Session) -> dict[str, list[dict]]:
@@ -119,14 +136,14 @@ def container_placements(session: Session) -> dict[str, list[dict]]:
     the join tolerant of registry-host/``library/``/tag differences (e.g. a
     ``homelabcmdb-cmdb`` container vs a ``homelabcmdb-cmdb:latest`` image).
     A digest-pinned container whose canonical ref matches no Image row joins
-    by digest instead — see :func:`_placement_key`.
+    by digest instead — see :func:`resolve_image_ref`.
     """
-    known, by_digest = _digest_index(session)
+    known, by_digest = digest_index(session)
     placements: dict[str, list[dict]] = {}
     for c in session.query(Container).all():
         if not c.image or not _is_running(c.state):
             continue
-        key = _placement_key(c.image, canonical_ref(c.image), known, by_digest)
+        key = resolve_image_ref(c.image, canonical_ref(c.image), known, by_digest)
         placements.setdefault(key, []).append(
             {"host": c.host.hostname if c.host else None, "name": c.name}
         )
@@ -142,10 +159,10 @@ def k8s_placements(session: Session) -> dict[str, list[dict]]:
     carries that digest — the registry feed scans tags, so the same content is
     usually known under ``repo:tag``.
     """
-    known, by_digest = _digest_index(session)
+    known, by_digest = digest_index(session)
     placements: dict[str, list[dict]] = {}
     for w in session.query(K8sWorkload).all():
-        key = _placement_key(w.image, w.image_canonical, known, by_digest)
+        key = resolve_image_ref(w.image, w.image_canonical, known, by_digest)
         if not key:
             continue
         placements.setdefault(key, []).append(

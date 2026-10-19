@@ -469,3 +469,17 @@ def test_deployments_digest_only_workload_matches_image_by_digest(db: Session):
             "container": "main",
         }
     ]
+
+
+def test_deployments_tagless_digest_container_prefers_digest_row(db: Session):
+    # `repo@sha256:X` canonicalises to `repo:latest`, but that row is a different
+    # build (digest Y). The digest identifies the content: join `repo:1.2.3`.
+    host = _host(db, "m1", "testhost")
+    latest = _img_with_digest(db, "example-org/idp:latest", f"example-org/idp@{_D2}")
+    tagged = _img_with_digest(db, "example-org/idp:1.2.3", f"example-org/idp@{_D1}")
+    _scan_with_source(db, latest, "docker")
+    _scan_with_source(db, tagged, "kubernetes")
+    _container(db, host, "idp-pinned", f"ghcr.io/example-org/idp@{_D1}")
+    placements = images_svc.container_placements(db)
+    assert images_svc.deployments(db, tagged, placements)["status"] == "running"
+    assert images_svc.deployments(db, latest, placements)["status"] == "registry-only"

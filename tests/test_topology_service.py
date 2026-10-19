@@ -46,7 +46,15 @@ def test_compound_chain_host_compose_container(db):
     host = _host(1)
     db.add(host)
     db.flush()
-    db.add(Container(host_id=host.id, name="app", image="app:1", state="running", compose_project="stack"))
+    db.add(
+        Container(
+            host_id=host.id,
+            name="app",
+            image="app:1",
+            state="running",
+            compose_project="stack",
+        )
+    )
     db.add(Container(host_id=host.id, name="loose", image="tool:1", state="exited"))
     db.commit()
 
@@ -67,7 +75,9 @@ def test_container_image_edge_carries_severity(db):
     db.add_all([host, img])
     db.flush()
     db.add(Container(host_id=host.id, name="app", image="app:1", state="running"))
-    db.add(ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=3, total=3))
+    db.add(
+        ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=3, total=3)
+    )
     db.commit()
 
     graph = build_topology(db)
@@ -82,7 +92,9 @@ def test_noisy_image_severity_treated_clean(db):
     db.add_all([host, img])
     db.flush()
     db.add(Container(host_id=host.id, name="n", image="noisy:1", state="running"))
-    db.add(ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=9, total=9))
+    db.add(
+        ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=9, total=9)
+    )
     db.commit()
 
     graph = build_topology(db)
@@ -105,8 +117,14 @@ def test_container_raw_ref_canonicalized_for_image_node(db):
     img = Image(ref="nginx:1.25", first_seen=datetime(2026, 1, 1))
     db.add_all([host, img])
     db.flush()
-    db.add(Container(host_id=host.id, name="web", image="library/nginx:1.25", state="running"))
-    db.add(ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=2, total=2))
+    db.add(
+        Container(
+            host_id=host.id, name="web", image="library/nginx:1.25", state="running"
+        )
+    )
+    db.add(
+        ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=2, total=2)
+    )
     db.commit()
 
     graph = build_topology(db)
@@ -131,7 +149,9 @@ def test_ref_spellings_share_one_image_node(db):
 
 
 def test_tailscale_edges_and_exit_node(db):
-    online = _host(1, tailscale_ipv4="100.64.0.1", tailscale_online=True, tailscale_exit_node=True)
+    online = _host(
+        1, tailscale_ipv4="100.64.0.1", tailscale_online=True, tailscale_exit_node=True
+    )
     offline = _host(2, tailscale_ipv4="100.64.0.2", tailscale_online=False)
     not_enrolled = _host(3)
     db.add_all([online, offline, not_enrolled])
@@ -143,7 +163,8 @@ def test_tailscale_edges_and_exit_node(db):
     assert "exit-node" in _node(graph, "host:host-1")["classes"]
     assert "ts-offline" in _edge(graph, "host:host-2", "tailnet")["classes"]
     assert not [
-        e for e in graph["edges"]
+        e
+        for e in graph["edges"]
         if e["data"]["source"] == "host:host-3" and e["data"]["target"] == "tailnet"
     ]
 
@@ -152,9 +173,29 @@ def test_exposure_data_on_host_node(db):
     host = _host(1)
     db.add(host)
     db.flush()
-    db.add(ListeningPort(host_id=host.id, proto="tcp", address="0.0.0.0", port=22, process="sshd"))
-    db.add(ListeningPort(host_id=host.id, proto="tcp", address="127.0.0.1", port=5432, process="postgres"))
-    db.add(TailscaleService(host_id=host.id, proto="https", port=443, target="127.0.0.1:8080", funnel=True))
+    db.add(
+        ListeningPort(
+            host_id=host.id, proto="tcp", address="0.0.0.0", port=22, process="sshd"
+        )
+    )
+    db.add(
+        ListeningPort(
+            host_id=host.id,
+            proto="tcp",
+            address="127.0.0.1",
+            port=5432,
+            process="postgres",
+        )
+    )
+    db.add(
+        TailscaleService(
+            host_id=host.id,
+            proto="https",
+            port=443,
+            target="127.0.0.1:8080",
+            funnel=True,
+        )
+    )
     db.commit()
 
     graph = build_topology(db)
@@ -170,7 +211,9 @@ def test_k8s_membership_edge_carries_role(db):
     cluster = K8sCluster(name="prod")
     db.add_all([host, cluster])
     db.flush()
-    db.add(K8sNode(host_id=host.id, cluster_id=cluster.id, role=K8sNodeRole.CONTROL_PLANE))
+    db.add(
+        K8sNode(host_id=host.id, cluster_id=cluster.id, role=K8sNodeRole.CONTROL_PLANE)
+    )
     db.commit()
 
     graph = build_topology(db)
@@ -196,7 +239,12 @@ def test_subnet_derivation_groups_lan_hosts(db):
 
 
 def test_node_ids_unique(db):
-    host = _host(1, primary_ipv4="192.168.1.10", tailscale_ipv4="100.64.0.1", tailscale_online=True)
+    host = _host(
+        1,
+        primary_ipv4="192.168.1.10",
+        tailscale_ipv4="100.64.0.1",
+        tailscale_online=True,
+    )
     cluster = K8sCluster(name="prod")
     db.add_all([host, cluster])
     db.flush()
@@ -216,7 +264,9 @@ def test_node_ids_unique(db):
     assert graph["meta"]["containers"] == 2
 
 
-def _workload(cluster_id, namespace, pod_name, container_name, image, canonical="__raw__"):
+def _workload(
+    cluster_id, namespace, pod_name, container_name, image, canonical="__raw__"
+):
     return K8sWorkload(
         cluster_id=cluster_id,
         namespace=namespace,
@@ -385,9 +435,21 @@ def test_critical_leaf_marks_enclosing_groups_has_crit(db):
     ct_img = Image(ref="app:1", first_seen=datetime(2026, 1, 1))
     db.add_all([host, cluster, wl_img, ct_img])
     db.flush()
-    db.add(ImageScan(image_id=wl_img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1))
-    db.add(ImageScan(image_id=ct_img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1))
-    db.add(_workload(cluster.id, "security", "falco-1", "falco", "falco:1", canonical="falco:1"))
+    db.add(
+        ImageScan(
+            image_id=wl_img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1
+        )
+    )
+    db.add(
+        ImageScan(
+            image_id=ct_img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1
+        )
+    )
+    db.add(
+        _workload(
+            cluster.id, "security", "falco-1", "falco", "falco:1", canonical="falco:1"
+        )
+    )
     db.add(
         Container(
             host_id=host.id,
@@ -427,10 +489,71 @@ def test_meta_reports_workload_and_namespace_counts(db):
     db.add(cluster)
     db.flush()
     db.add(_workload(cluster.id, "security", "falco-1", "falco", "falco:1"))
-    db.add(_workload(cluster.id, "security", "falco-2", "falco", "falco:1"))  # same node
+    db.add(
+        _workload(cluster.id, "security", "falco-2", "falco", "falco:1")
+    )  # same node
     db.add(_workload(cluster.id, "apps", "web-1", "web", "web:1"))
     db.commit()
 
     graph = build_topology(db)
     assert graph["meta"]["workloads"] == 2  # falco (deduped) + web
     assert graph["meta"]["namespaces"] == 2  # security + apps
+
+
+_DIGEST_X = "sha256:" + "a" * 64
+
+
+def test_digest_pinned_container_joins_image_by_digest(db):
+    # The scan was filed as `app@sha256:X` → Image.ref `app:latest`; the container
+    # runs `app:1.2.3@sha256:X`. Same content → the images page shows it running;
+    # the topology ring must agree instead of calling it unscanned.
+    host = _host(1)
+    img = Image(
+        ref="app:latest", digest=f"app@{_DIGEST_X}", first_seen=datetime(2026, 1, 1)
+    )
+    db.add_all([host, img])
+    db.flush()
+    db.add(
+        Container(
+            host_id=host.id, name="app", image=f"app:1.2.3@{_DIGEST_X}", state="running"
+        )
+    )
+    db.add(
+        ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=2, total=2)
+    )
+    db.commit()
+
+    graph = build_topology(db)
+    assert "sev-critical" in _node(graph, "container:host-1/app")["classes"]
+    _edge(graph, "container:host-1/app", "image:app:latest")
+    assert "image:app:1.2.3" not in _ids(graph)
+
+
+def test_digest_only_workload_joins_image_by_digest(db):
+    cluster = K8sCluster(name="demo-cluster")
+    img = Image(
+        ref="portfolio:0.0.1",
+        digest=f"portfolio@{_DIGEST_X}",
+        first_seen=datetime(2026, 1, 1),
+    )
+    db.add_all([cluster, img])
+    db.flush()
+    db.add(
+        ImageScan(image_id=img.id, scanned_at=datetime(2026, 6, 1), critical=1, total=1)
+    )
+    db.add(
+        K8sWorkload(
+            cluster_id=cluster.id,
+            namespace="web",
+            pod_name="portfolio-abc",
+            container_name="main",
+            image=f"ghcr.io/portfolio@{_DIGEST_X}",
+            image_canonical=None,
+        )
+    )
+    db.commit()
+
+    graph = build_topology(db)
+    wl = _node(graph, f"workload:demo-cluster/web/main@ghcr.io/portfolio@{_DIGEST_X}")
+    assert "sev-critical" in wl["classes"]
+    _edge(graph, wl["data"]["id"], "image:portfolio:0.0.1")

@@ -15,7 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   digest-pinned image (the IdP, Gitea, cloudflared, Postgres, Zot) sat in *registry-only* and was
   excluded from the running-only CVE totals. Placement joins now try the canonical ref first and
   fall back to the digest both sides carry; the same fallback lets a digest-only pod ref
-  (`image_canonical` NULL) join a registry-scanned `repo:tag` row. Never attaches to both rows.
+  (`image_canonical` NULL) join a registry-scanned `repo:tag` row. A tagless `repo@sha256:…`
+  container joins by digest *first*, since its `repo:latest` canonical is fabricated. Never attaches
+  to both rows. The topology ring uses the same rule, so it agrees with the images page.
 
 ### Removed
 
