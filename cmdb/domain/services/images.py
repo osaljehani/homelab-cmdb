@@ -60,6 +60,74 @@ def _is_running(state: str | None) -> bool:
     return state is None or state.lower() in ("running", "up")
 
 
+def _digest_of(ref: str | None) -> str | None:
+    """The ``sha256:...`` part of a ref that carries one, else None."""
+    if not ref:
+        return None
+    _, sep, digest = ref.partition("@")
+    return digest if sep and digest.startswith("sha256:") else None
+
+
+def digest_index(session: Session) -> tuple[set[str], dict[str, str]]:
+    """``(known canonical refs, digest -> canonical ref)`` over all Image rows.
+
+    ``Image.digest`` is whatever the scanner reported — a ``repo@sha256:...``
+    RepoDigest or a bare ``sha256:...`` ImageID — so only the digest part is
+    indexed. When several rows share a digest (the registry feed scanned
+    ``repo:1.2.3``, the runtime feed scanned ``repo@sha256:...``), the row with
+    a real tag wins over a fabricated ``:latest``.
+    """
+    known: set[str] = set()
+    by_digest: dict[str, str] = {}
+    for ref, digest in session.query(Image.ref, Image.digest).all():
+        known.add(ref)
+        d = digest if (digest or "").startswith("sha256:") else _digest_of(digest)
+        if not d:
+            continue
+        current = by_digest.get(d)
+        if current is None or (
+            current.endswith(":latest") and not ref.endswith(":latest")
+        ):
+            by_digest[d] = ref
+    return known, by_digest
+
+
+def _is_tagless_digest_ref(raw_ref: str | None) -> bool:
+    """``repo@sha256:…`` with no tag before the ``@``."""
+    if not raw_ref or "@" not in raw_ref:
+        return False
+    name = raw_ref.split("@", 1)[0]
+    return ":" not in name.rsplit("/", 1)[-1]
+
+
+def resolve_image_ref(
+    raw_ref: str | None,
+    canonical: str | None,
+    known: set[str],
+    by_digest: dict[str, str],
+) -> str | None:
+    """Which ``Image.ref`` a runtime ref joins to — the one join rule for every view.
+
+    Spelling first, content second, never both rows:
+
+    * A **tagged** ref joins its canonical ref when an Image row has it (the
+      normal exact join), else the row carrying the same digest — e.g. a
+      ``repo:1.2.3@sha256:X`` container vs a scan filed as ``repo@sha256:X``
+      and stored as ``repo:latest``.
+    * A **tagless digest** ref (``repo@sha256:X``) joins by digest first: its
+      canonical ``repo:latest`` is fabricated by :func:`canonical_ref` and may
+      be a different build. Only when no row carries the digest does it fall
+      back to that canonical ref (the pre-2026-10 behaviour).
+    """
+    digest = _digest_of(raw_ref)
+    digest_hit = by_digest.get(digest) if digest else None
+    if _is_tagless_digest_ref(raw_ref) and digest_hit:
+        return digest_hit
+    if canonical is not None and canonical in known:
+        return canonical
+    return digest_hit or canonical
+
+
 def container_placements(session: Session) -> dict[str, list[dict]]:
     """Canonical image ref -> running-container placements, in one pass.
 
@@ -67,12 +135,16 @@ def container_placements(session: Session) -> dict[str, list[dict]]:
     canonicalize each container's raw ``docker ps`` ``.Image`` string, making
     the join tolerant of registry-host/``library/``/tag differences (e.g. a
     ``homelabcmdb-cmdb`` container vs a ``homelabcmdb-cmdb:latest`` image).
+    A digest-pinned container whose canonical ref matches no Image row joins
+    by digest instead — see :func:`resolve_image_ref`.
     """
+    known, by_digest = digest_index(session)
     placements: dict[str, list[dict]] = {}
     for c in session.query(Container).all():
         if not c.image or not _is_running(c.state):
             continue
-        placements.setdefault(canonical_ref(c.image), []).append(
+        key = resolve_image_ref(c.image, canonical_ref(c.image), known, by_digest)
+        placements.setdefault(key, []).append(
             {"host": c.host.hostname if c.host else None, "name": c.name}
         )
     return placements
@@ -82,13 +154,18 @@ def k8s_placements(session: Session) -> dict[str, list[dict]]:
     """Canonical image ref -> k8s workload placements, in one pass.
 
     ``image_canonical`` is computed at import (NULL for digest-only refs), so
-    the join to ``Image.ref`` mirrors :func:`container_placements`.
+    the join to ``Image.ref`` mirrors :func:`container_placements`. A
+    digest-only pod ref (``repo@sha256:...``) still joins when some Image row
+    carries that digest — the registry feed scans tags, so the same content is
+    usually known under ``repo:tag``.
     """
+    known, by_digest = digest_index(session)
     placements: dict[str, list[dict]] = {}
     for w in session.query(K8sWorkload).all():
-        if not w.image_canonical:
+        key = resolve_image_ref(w.image, w.image_canonical, known, by_digest)
+        if not key:
             continue
-        placements.setdefault(w.image_canonical, []).append(
+        placements.setdefault(key, []).append(
             {
                 "cluster": w.cluster.name if w.cluster else None,
                 "namespace": w.namespace,

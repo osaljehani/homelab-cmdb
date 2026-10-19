@@ -302,7 +302,9 @@ def test_deployments_matches_tagless_container_to_latest_image(db: Session):
     assert dep["docker"] == [{"host": "testhost", "name": "homelabcmdb-cmdb-1"}]
 
 
-def _k8s_workload(db, cluster_name, ns, pod, image_canonical, container="main"):
+def _k8s_workload(
+    db, cluster_name, ns, pod, image_canonical, container="main", image=None
+):
     cluster = db.query(K8sCluster).filter_by(name=cluster_name).first()
     if cluster is None:
         cluster = K8sCluster(name=cluster_name)
@@ -314,7 +316,7 @@ def _k8s_workload(db, cluster_name, ns, pod, image_canonical, container="main"):
             namespace=ns,
             pod_name=pod,
             container_name=container,
-            image=image_canonical or "pinned@sha256:abc",
+            image=image or image_canonical or "pinned@sha256:abc",
             image_canonical=image_canonical,
         )
     )
@@ -395,3 +397,89 @@ def test_vuln_summary_buckets_running_and_registry_only(db: Session):
     assert s["registry_only"]["images"] == 2
     assert s["registry_only"]["scanned_images"] == 1
     assert s["registry_only"]["critical"] == 1 and s["registry_only"]["high"] == 4
+
+
+# --- digest fallback: digest-pinned runtime refs vs digest-only scan refs ----
+_D1 = "sha256:" + "1" * 64
+_D2 = "sha256:" + "2" * 64
+
+
+def _img_with_digest(db, ref, digest_ref):
+    img = _img(db, ref)
+    img.digest = digest_ref
+    db.flush()
+    return img
+
+
+def test_deployments_matches_digest_pinned_container_when_tag_differs(db: Session):
+    # Scan feed scanned `repo@sha256:...` (no tag) -> Image.ref canonicalised to
+    # `repo:latest`; the container was created as `repo:1.2.3@sha256:...`. Same
+    # digest, different canonical ref -> must still join.
+    host = _host(db, "m1", "testhost")
+    img = _img_with_digest(
+        db, "example-org/idp:latest", f"ghcr.io/example-org/idp@{_D1}"
+    )
+    _scan_with_source(db, img, "docker")
+    _container(db, host, "idp-server", f"ghcr.io/example-org/idp:1.2.3@{_D1}")
+    dep = images_svc.deployments(db, img)
+    assert dep["docker"] == [{"host": "testhost", "name": "idp-server"}]
+    assert dep["status"] == "running"
+
+
+def test_deployments_digest_fallback_only_when_canonical_ref_unknown(db: Session):
+    # Two Image rows share a digest (registry feed scanned `repo:1.2.3`, runtime
+    # feed scanned `repo@sha256:...`). The container canonicalises to the
+    # tagged row, which exists -> attach there only; never double-count.
+    host = _host(db, "m1", "testhost")
+    tagged = _img_with_digest(db, "example-org/edge:1.2.3", f"example-org/edge@{_D1}")
+    latest = _img_with_digest(db, "example-org/edge:latest", f"example-org/edge@{_D1}")
+    _scan_with_source(db, tagged, "kubernetes")
+    _scan_with_source(db, latest, "docker")
+    _container(db, host, "edge-1", f"example-org/edge:1.2.3@{_D1}")
+    placements = images_svc.container_placements(db)
+    assert images_svc.deployments(db, tagged, placements)["status"] == "running"
+    assert images_svc.deployments(db, latest, placements)["status"] == "registry-only"
+
+
+def test_deployments_digest_mismatch_does_not_match(db: Session):
+    host = _host(db, "m1", "testhost")
+    img = _img_with_digest(db, "example-org/idp:latest", f"example-org/idp@{_D1}")
+    _scan_with_source(db, img, "docker")
+    _container(db, host, "idp-old", f"example-org/idp:1.0.0@{_D2}")
+    dep = images_svc.deployments(db, img)
+    assert dep["docker"] == []
+    assert dep["status"] == "registry-only"
+
+
+def test_deployments_digest_only_workload_matches_image_by_digest(db: Session):
+    # Pod spec pins `repo@sha256:...` (image_canonical NULL by design); the
+    # registry feed scanned `repo:0.0.1` with the same digest -> join by digest.
+    img = _img_with_digest(db, "portfolio:0.0.1", f"portfolio@{_D1}")
+    _scan_with_source(db, img, "kubernetes")
+    _k8s_workload(
+        db, "demo-cluster", "web", "pinned-abc", None, image=f"ghcr.io/portfolio@{_D1}"
+    )
+    dep = images_svc.deployments(db, img)
+    assert dep["status"] == "running"
+    assert dep["kubernetes"] == [
+        {
+            "cluster": "demo-cluster",
+            "namespace": "web",
+            "pod": "pinned-abc",
+            "container": "main",
+        }
+    ]
+
+
+def test_deployments_tagless_digest_container_prefers_digest_row(db: Session):
+    # `repo@sha256:X` canonicalises to `repo:latest`, but that row is a different
+    # build (digest Y). The digest identifies the content: join `repo:1.2.3`.
+    host = _host(db, "m1", "testhost")
+    latest = _img_with_digest(db, "example-org/idp:latest", f"example-org/idp@{_D2}")
+    tagged = _img_with_digest(db, "example-org/idp:1.2.3", f"example-org/idp@{_D1}")
+    _scan_with_source(db, latest, "docker")
+    _scan_with_source(db, tagged, "kubernetes")
+    _container(db, host, "idp-pinned", f"ghcr.io/example-org/idp@{_D1}")
+    placements = images_svc.container_placements(db)
+    assert images_svc.deployments(db, tagged, placements)["status"] == "running"
+    assert images_svc.deployments(db, latest, placements)["status"] == "registry-only"

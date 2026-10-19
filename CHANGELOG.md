@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Digest-pinned containers no longer vanish from the running set.** The runtime scan feed
+  scans `repo@sha256:…` (no tag), which canonicalises to `repo:latest`, while `docker ps` reports
+  the container as `repo:1.2.3@sha256:…` → `repo:1.2.3`. The two never matched, so every
+  digest-pinned image (the IdP, Gitea, cloudflared, Postgres, Zot) sat in *registry-only* and was
+  excluded from the running-only CVE totals. Placement joins now try the canonical ref first and
+  fall back to the digest both sides carry; the same fallback lets a digest-only pod ref
+  (`image_canonical` NULL) join a registry-scanned `repo:tag` row. A tagless `repo@sha256:…`
+  container joins by digest *first*, since its `repo:latest` canonical is fabricated. Never attaches
+  to both rows. The topology ring uses the same rule, so it agrees with the images page.
+
 ### Removed
 
 - **`cmdb_feed=http` in the example scan scripts.** Since 0.4.0 the upload endpoint sits behind
