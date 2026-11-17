@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A rebuilt host no longer imports as a duplicate.** Reinstalling the OS regenerates
+  `/etc/machine-id`, the upsert key, so the same box came back as a second host: its history split
+  in two, and hostname lookups (k8s node link, ports, Tailscale) kept resolving to the dead record.
+  An import with an unknown machine-id now re-keys the existing record when exactly one host has
+  the same hostname *and* primary MAC; the machine-id change shows up in the host's history.
+  Hostname alone never matches, and an ambiguous match still creates a new host.
+
 ## [0.4.3] - 2026-10-19
 
 ### Fixed

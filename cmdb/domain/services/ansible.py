@@ -72,6 +72,27 @@ def _extract(facts: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _rebuilt_host(session: Session, fields: dict[str, Any]) -> Host | None:
+    """The existing record for a host that was reinstalled, if there is one.
+
+    An OS rebuild regenerates /etc/machine-id, so the upsert key misses and the
+    same box would be imported as a second host — splitting its history, and
+    leaving every hostname lookup pointing at the dead record. Same hostname
+    *and* same primary MAC under an unknown machine-id is that box.
+
+    Deliberately narrow: both values must be present, and exactly one record may
+    match. Anything looser risks silently folding two machines into one.
+    """
+    hostname = fields.get("hostname")
+    mac = fields.get("primary_mac")
+    if not hostname or not mac:
+        return None
+    matches = (
+        session.query(Host).filter_by(hostname=hostname, primary_mac=mac).limit(2).all()
+    )
+    return matches[0] if len(matches) == 1 else None
+
+
 def import_host(session: Session, raw_data: dict[str, Any]) -> Host:
     facts = raw_data.get("ansible_facts", raw_data)
     fields = _extract(facts)
@@ -80,6 +101,10 @@ def import_host(session: Session, raw_data: dict[str, Any]) -> Host:
         raise ValueError("ansible_machine_id not found in facts")
 
     host = session.query(Host).filter_by(machine_id=machine_id).first()
+    if host is None:
+        host = _rebuilt_host(session, fields)
+        if host is not None:
+            host.machine_id = machine_id
     if host is None:
         host = Host(machine_id=machine_id, created_at=datetime.now(timezone.utc))
         session.add(host)
