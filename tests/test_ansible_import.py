@@ -111,3 +111,92 @@ def test_import_from_path_idempotent(db, tmp_path, host_facts):
     assert log2.hosts_upserted == 1
     from cmdb.domain.models import Host
     assert db.query(Host).count() == 1
+
+
+# --- rebuilt host: new machine-id, same hostname + primary MAC ---------------
+
+
+def _rebuilt(facts: dict, machine_id: str = "99887766554433229988776655443322") -> dict:
+    import copy
+
+    data = copy.deepcopy(facts)
+    data["ansible_facts"]["ansible_machine_id"] = machine_id
+    return data
+
+
+def test_rebuilt_host_rekeys_existing_record(db, host_facts):
+    """An OS reinstall regenerates /etc/machine-id; the box is still the same
+    host, so the existing record is re-keyed instead of duplicated."""
+    from cmdb.domain.models import Host
+
+    original = import_host(db, host_facts)
+    assert original.primary_mac  # the fixture must carry a MAC for this to mean anything
+    rebuilt = import_host(db, _rebuilt(host_facts))
+
+    assert rebuilt.id == original.id
+    assert rebuilt.machine_id == "99887766554433229988776655443322"
+    assert db.query(Host).count() == 1
+
+
+def test_rebuilt_host_rekey_is_recorded_in_history(db, host_facts):
+    from cmdb.domain.services.history import host_history
+
+    import_host(db, host_facts)
+    host = import_host(db, _rebuilt(host_facts))
+
+    changed = [c[0] for entry in host_history(db, host) for c in entry["changes"]]
+    assert "machine_id" in changed
+
+
+def test_new_machine_id_with_different_mac_is_a_new_host(db, host_facts):
+    from cmdb.domain.models import Host
+
+    import_host(db, host_facts)
+    other = _rebuilt(host_facts)
+    other["ansible_facts"]["ansible_default_ipv4"]["macaddress"] = "02:00:5e:00:53:99"
+    import_host(db, other)
+
+    assert db.query(Host).count() == 2
+
+
+def test_new_machine_id_with_different_hostname_is_a_new_host(db, host_facts):
+    from cmdb.domain.models import Host
+
+    import_host(db, host_facts)
+    other = _rebuilt(host_facts)
+    other["ansible_facts"]["ansible_hostname"] = "otherhost"
+    import_host(db, other)
+
+    assert db.query(Host).count() == 2
+
+
+def test_new_machine_id_without_mac_is_a_new_host(db, host_facts):
+    """No MAC on either side is not a match — hostname alone never merges."""
+    from cmdb.domain.models import Host
+
+    bare = _rebuilt(host_facts, "aabbccdd11223344aabbccdd11223344")
+    bare["ansible_facts"]["ansible_default_ipv4"].pop("macaddress", None)
+    import_host(db, bare)
+    import_host(db, _rebuilt(bare))
+
+    assert db.query(Host).count() == 2
+
+
+def test_ambiguous_rebuild_match_is_a_new_host(db, host_facts):
+    """Two existing records already share hostname + MAC: don't guess."""
+    from cmdb.domain.models import Host
+
+    first = import_host(db, host_facts)
+    second = import_host(db, _rebuilt(host_facts, "1111111111111111aaaaaaaaaaaaaaaa"))
+    # force the pre-existing duplicate state (what a pre-fix DB can contain)
+    assert first.id == second.id
+    dup = Host(
+        machine_id="2222222222222222bbbbbbbbbbbbbbbb",
+        hostname=first.hostname,
+        primary_mac=first.primary_mac,
+    )
+    db.add(dup)
+    db.flush()
+
+    import_host(db, _rebuilt(host_facts, "3333333333333333cccccccccccccccc"))
+    assert db.query(Host).count() == 3
