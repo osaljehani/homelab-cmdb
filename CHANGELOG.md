@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`cmdb k8s cluster rename <name> <new-name>`.** A k3s kubeconfig reports the context `default`,
+  so collection names the cluster after its control-plane host — which reads as a host linked to
+  itself in the topology. Rename it to what you actually call it.
+
+### Fixed
+
+- **A renamed cluster stays renamed.** Collection used to look a cluster up by the name it derived
+  from the kubeconfig context, so any rename was undone by a second cluster appearing on the next
+  run. It now recognises a cluster through the control-plane host it already belongs to; the context
+  only names a cluster that is new.
+- **Topology no longer vanishes when zooming with both a mouse and a trackpad.** Cytoscape's wheel
+  handler scales its step by the smallest delta it has seen, so one trackpad event after a mouse
+  wheel turned the next notch into a zoom of several orders of magnitude, recoverable only with
+  Re-layout. The page handles wheel and pinch itself now: bounded per event, zoom clamped to
+  0.1×–6×, still anchored on the cursor.
+
 ## [0.4.3] - 2026-10-19
 
 ### Fixed

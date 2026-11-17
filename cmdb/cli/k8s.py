@@ -5,7 +5,7 @@ from rich.table import Table
 from cmdb.db.session import get_session
 from cmdb.domain.models import K8sNodeRole
 from cmdb.domain.services.k8s import (
-    add_cluster, delete_cluster, list_clusters,
+    add_cluster, delete_cluster, list_clusters, rename_cluster,
     add_node, list_nodes, remove_node
 )
 
@@ -39,6 +39,18 @@ def cluster_list() -> None:
     for row in rows:
         table.add_row(*row)
     console.print(table)
+
+
+@cluster_app.command("rename")
+def cluster_rename(name: str, new_name: str) -> None:
+    """Rename a cluster. The name sticks: later collections keep it."""
+    with get_session() as session:
+        try:
+            rename_cluster(session, name, new_name)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1)
+    console.print(f"[green]Renamed cluster '{name}' to '{new_name.strip()}'[/green]")
 
 
 @cluster_app.command("delete")

@@ -87,3 +87,67 @@ def test_remove_node(populated_db):
 def test_remove_node_not_found(populated_db):
     add_cluster(populated_db, "k3s")
     assert remove_node(populated_db, "testhost", "k3s") is False
+
+
+# --- rename_cluster ----------------------------------------------------------
+
+
+def test_rename_cluster_keeps_nodes(populated_db):
+    from cmdb.domain.services.k8s import rename_cluster
+
+    add_cluster(populated_db, "testhost")
+    add_node(populated_db, "testhost", "testhost", K8sNodeRole.CONTROL_PLANE)
+
+    cluster = rename_cluster(populated_db, "testhost", "homelab-k3s")
+
+    assert cluster.name == "homelab-k3s"
+    assert [c.name for c in list_clusters(populated_db)] == ["homelab-k3s"]
+    assert len(list_nodes(populated_db, "homelab-k3s")) == 1
+
+
+def test_rename_cluster_missing_raises(populated_db):
+    from cmdb.domain.services.k8s import rename_cluster
+
+    with pytest.raises(ValueError, match="not found"):
+        rename_cluster(populated_db, "nope", "anything")
+
+
+def test_rename_cluster_onto_existing_name_raises(populated_db):
+    from cmdb.domain.services.k8s import rename_cluster
+
+    add_cluster(populated_db, "cluster-a")
+    add_cluster(populated_db, "cluster-b")
+    with pytest.raises(ValueError, match="already exists"):
+        rename_cluster(populated_db, "cluster-a", "cluster-b")
+
+
+def test_rename_cluster_blank_name_raises(populated_db):
+    from cmdb.domain.services.k8s import rename_cluster
+
+    add_cluster(populated_db, "cluster-a")
+    with pytest.raises(ValueError, match="empty"):
+        rename_cluster(populated_db, "cluster-a", "   ")
+
+
+def test_cli_cluster_rename(db, monkeypatch):
+    from contextlib import contextmanager
+
+    from typer.testing import CliRunner
+
+    from cmdb.cli.main import app
+
+    @contextmanager
+    def _fake_session():
+        yield db
+
+    monkeypatch.setattr("cmdb.cli.k8s.get_session", _fake_session)
+    add_cluster(db, "testhost")
+    runner = CliRunner()
+
+    r = runner.invoke(app, ["k8s", "cluster", "rename", "testhost", "homelab-k3s"])
+    assert r.exit_code == 0, r.output
+    assert [c.name for c in list_clusters(db)] == ["homelab-k3s"]
+
+    r = runner.invoke(app, ["k8s", "cluster", "rename", "ghost", "x"])
+    assert r.exit_code != 0
+    assert "not found" in r.output
