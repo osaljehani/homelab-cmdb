@@ -24,6 +24,7 @@ from cmdb.domain.models import ImportLog, ImportSource
 from cmdb.domain.services import ansible as ansible_svc
 from cmdb.domain.services.docker_import import import_containers
 from cmdb.domain.services.generate import _get_hosts, generate_inventory_yaml
+from cmdb.domain.services.k8s import cluster_for_control_plane
 from cmdb.domain.services.k8s_import import import_cluster, parse_kubectl_json
 from cmdb.domain.services.vuln_snapshots import write_daily_snapshot
 from cmdb.domain.services.ports_import import import_ports, parse_ss
@@ -286,9 +287,15 @@ def collect_k8s(
                 continue
 
             context = blob["context"]
-            cluster_name = (
-                inv_host if context.lower() in _GENERIC_K8S_CONTEXTS else context
-            )
+            # The context only names a cluster we haven't seen. One this host
+            # already fronts keeps its name, so a rename survives re-collection.
+            known = cluster_for_control_plane(session, inv_host)
+            if known is not None:
+                cluster_name = known.name
+            else:
+                cluster_name = (
+                    inv_host if context.lower() in _GENERIC_K8S_CONTEXTS else context
+                )
             try:
                 # pods_raw="" (older probe) leaves the workloads key out, so a
                 # previous collection's rows are never wiped by a probe that

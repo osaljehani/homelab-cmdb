@@ -279,7 +279,9 @@ Notes on behaviour:
   non-Kubernetes host, or a host without `tailscale` is skipped silently rather than erroring
   and a transient failure never wipes a host's existing data. Kubernetes collection lets a
   control-plane node enumerate its whole cluster, so workers are discovered without being reached
-  directly.
+  directly. A cluster whose kubeconfig context is generic (`default`, as k3s reports) is named after
+  its control-plane host; `cmdb k8s cluster rename <name> <new-name>` gives it a real name, and
+  later collections keep it.
 - **Unreachable or failed hosts** are reported in the run's notes. The `scripts/*-export.sh`
   file-based path remains a fallback for hosts you can't SSH to from the controller.
 

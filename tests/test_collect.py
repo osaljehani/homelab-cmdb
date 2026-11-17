@@ -358,6 +358,43 @@ def test_collect_k8s_generic_context_falls_back_to_hostname(host_db: Session, mo
     assert host_db.query(K8sCluster).one().name == "testhost"
 
 
+def test_collect_k8s_keeps_a_renamed_cluster(host_db: Session, monkeypatch):
+    """A generic context only names a cluster the first time. Once the user renames
+    it, the next collection must find it through its control-plane, not recreate
+    a second cluster under the hostname."""
+    from cmdb.domain.services.k8s import rename_cluster
+
+    blob = _k8s_blob("default", [_node("testhost", "control-plane")],
+                     [{"metadata": {"name": "default"}}])
+
+    def writer(tree: Path, cmd):
+        (tree / "testhost").write_text(json.dumps({"rc": 0, "stdout": blob}))
+
+    monkeypatch.setattr(collect_mod.subprocess, "run", _fake_run(writer))
+
+    collect_k8s(host_db, INVENTORY)
+    rename_cluster(host_db, "testhost", "homelab-k3s")
+    collect_k8s(host_db, INVENTORY)
+
+    cluster = host_db.query(K8sCluster).one()
+    assert cluster.name == "homelab-k3s"
+    assert len(cluster.nodes) == 1
+
+
+def test_collect_k8s_named_context_still_wins_for_a_new_cluster(host_db: Session, monkeypatch):
+    blob = _k8s_blob("prod-east", [_node("testhost", "control-plane")],
+                     [{"metadata": {"name": "default"}}])
+
+    def writer(tree: Path, cmd):
+        (tree / "testhost").write_text(json.dumps({"rc": 0, "stdout": blob}))
+
+    monkeypatch.setattr(collect_mod.subprocess, "run", _fake_run(writer))
+
+    collect_k8s(host_db, INVENTORY)
+
+    assert host_db.query(K8sCluster).one().name == "prod-east"
+
+
 def test_collect_k8s_unknown_node_recorded_in_notes(host_db: Session, monkeypatch):
     # A control-plane enumerates a worker that isn't in the CMDB yet surfaced, not fatal.
     blob = _k8s_blob(

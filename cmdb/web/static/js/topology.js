@@ -166,6 +166,42 @@
       cy.fit(undefined, 40);
     }
 
+    /* ── wheel / pinch zoom ──
+       Cytoscape's own wheel handler calibrates its step from the smallest delta
+       it has ever seen. A mouse (deltas of ~120) followed by one trackpad event
+       (deltas well under 1) leaves that calibration near zero, after which a
+       single wheel notch multiplies the zoom by orders of magnitude and the
+       graph is gone until Re-layout. So we take the wheel ourselves: capture it
+       on the wrapper before Cytoscape's listener on #cy sees it, cap what any
+       one event may do, and bound the zoom so the graph can't be lost. */
+    var MIN_ZOOM = 0.1;
+    var MAX_ZOOM = 6;
+    var MAX_WHEEL_STEP = 0.25;   // largest zoom change (in e-folds) per event
+
+    function bindWheelZoom() {
+      var wrap = container.parentNode;
+      wrap.addEventListener('wheel', function (e) {
+        if (!cy || !container.contains(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var dy = e.deltaY;
+        if (!dy) return;
+        if (e.deltaMode === 1) dy *= 40;                       // lines (3/notch in Firefox)
+        else if (e.deltaMode === 2) dy *= container.clientHeight; // pages
+        // Pinch arrives as ctrl+wheel with small deltas; give it more travel.
+        var step = -dy * (e.ctrlKey ? 0.01 : 0.0015);
+        step = Math.max(-MAX_WHEEL_STEP, Math.min(MAX_WHEEL_STEP, step));
+        var rect = container.getBoundingClientRect();
+        cy.zoom({
+          level: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cy.zoom() * Math.exp(step))),
+          renderedPosition: {
+            x: e.clientX - rect.left - container.clientLeft,
+            y: e.clientY - rect.top - container.clientTop
+          }
+        });
+      }, { capture: true, passive: false });
+    }
+
     /* ── detail panel ── */
     var panel = document.getElementById('topology-panel');
     var panelTitle = document.getElementById('panel-title');
@@ -324,8 +360,10 @@
           container: container,
           elements: { nodes: graph.nodes, edges: graph.edges },
           style: buildStyle(),
-          wheelSensitivity: 0.2
+          minZoom: MIN_ZOOM,
+          maxZoom: MAX_ZOOM
         });
+        bindWheelZoom();
 
         if (typeof cy.expandCollapse === 'function') {
           ecApi = cy.expandCollapse({
